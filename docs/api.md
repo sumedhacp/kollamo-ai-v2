@@ -92,7 +92,38 @@ Dispatches an asynchronous job to retrieve and analyze YouTube video comments.
 }
 ```
 
+### `POST /api/analyze/{job_id}/ingest`
+Triggers comment thread retrieval from the official YouTube Data API v3 and persists raw comments into the database.
+
+#### Response: `200 OK`
+```json
+{
+  "job_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "status": "running",
+  "progress": 0.0,
+  "processed_comments": 0,
+  "total_comments": 250,
+  "video": {
+    "video_id": "dQw4w9WgXcQ",
+    "title": "Sample Malayalam Movie Review",
+    "channel_title": "Cinema Reviews",
+    "view_count": 1250000
+  },
+  "summary": null,
+  "created_at": "2026-10-06T13:35:00Z",
+  "completed_at": null,
+  "error": null
+}
+```
+
+#### Error Responses:
+- `401 Unauthorized`: Missing or invalid YouTube Data API key.
+- `403 Forbidden`: Comments are disabled on the video.
+- `404 Not Found`: Video not found or private.
+- `429 Too Many Requests`: YouTube Data API quota exceeded.
+
 ---
+
 
 ## 4. Job Telemetry & Audience Intelligence
 

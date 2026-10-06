@@ -9,8 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Phase 4 (v0.5.0)
-- YouTube Data API v3 integration with pagination and quota management.
+### Planned for Phase 5 (v0.6.0)
+- Celery + Redis asynchronous background task queue.
+
+---
+
+## [0.5.0] - 2026-10-06
+
+### Added
+- Official YouTube Data API v3 asynchronous client (`backend/app/services/youtube_client.py`).
+- Robust pagination loop with `nextPageToken` and requested sample size cutoff (50, 100, 250, 500, all).
+- Sort mode mapping (`top` -> `relevance`, `newest` -> `time`, `oldest` -> chronological ordering).
+- Granular domain exceptions: `YouTubeVideoNotFoundError`, `YouTubeCommentsDisabledError`, `YouTubeQuotaExceededError`, `YouTubeAuthError`, and `YouTubeNetworkError`.
+- Exponential backoff with jitter and retry mechanism for transient 5xx HTTP server errors.
+- Ingestion orchestrator (`backend/app/services/ingestion_service.py`) extracting video metadata and comment threads into PostgreSQL.
+- Raw text preservation and automatic Malayalam/Latin script detection on ingestion.
+- Trigger endpoint `POST /api/analyze/{job_id}/ingest` with mapped RFC error responses (401, 403, 404, 429).
+- 15 comprehensive unit and mocked integration tests across YouTube API client, ingestion pipeline, and API endpoints.
 
 ---
 

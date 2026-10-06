@@ -1,6 +1,7 @@
 """Pytest Fixtures and Test Setup for Kollamo.ai Backend."""
 
 import os
+from pathlib import Path
 from typing import AsyncGenerator
 import pytest
 import pytest_asyncio
@@ -10,21 +11,30 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import StaticPool
 
-# Ensure ML and DB settings point to test configurations
+# Test DB file path
+TEST_DB_FILE = Path(__file__).parent / "test_kollamo.db"
+TEST_DB_URL = f"sqlite+aiosqlite:///{TEST_DB_FILE.as_posix()}"
+
 os.environ["ENVIRONMENT"] = "test"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["DATABASE_URL"] = TEST_DB_URL
 
+from backend.app.models import (
+    Base,
+    Video,
+    AnalysisJob,
+    Comment,
+    Prediction,
+    SummaryMetric,
+    ModelVersion,
+)
 from backend.app.main import app
-from backend.app.db.base import Base
 from backend.app.db.session import get_db
 
-# Create async in-memory SQLite engine for tests
+# Create file-backed SQLite engine for reliable cross-thread test isolation
 test_engine = create_async_engine(
-    "sqlite+aiosqlite:///:memory:",
+    TEST_DB_URL,
     connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
 )
 
 TestingSessionLocal = async_sessionmaker(
@@ -35,9 +45,21 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_test_db_file() -> AsyncGenerator[None, None]:
+    """Ensures test database engine is disposed and temporary SQLite file is removed."""
+    yield
+    await test_engine.dispose()
+    if TEST_DB_FILE.exists():
+        try:
+            TEST_DB_FILE.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_test_db() -> AsyncGenerator[None, None]:
-    """Creates all database tables before test and drops afterwards."""
+    """Creates all database tables before test and cleans up afterwards."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

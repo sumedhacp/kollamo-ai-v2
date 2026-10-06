@@ -12,6 +12,17 @@ from backend.app.schemas.analyze import (
 )
 from backend.app.schemas.error import ErrorResponse
 from backend.app.services.job_service import JobService
+from backend.app.services.ingestion_service import (
+    IngestionService,
+    get_ingestion_service,
+)
+from backend.app.services.youtube_client import (
+    YouTubeAPIError,
+    YouTubeAuthError,
+    YouTubeCommentsDisabledError,
+    YouTubeQuotaExceededError,
+    YouTubeVideoNotFoundError,
+)
 
 router = APIRouter(prefix="/analyze", tags=["YouTube Analysis"])
 
@@ -39,6 +50,79 @@ async def create_analysis_job(
         message="Analysis job queued successfully",
         created_at=job.created_at,
     )
+
+
+@router.post(
+    "/{job_id}/ingest",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Trigger comment ingestion for an analysis job",
+    description="Fetches YouTube video metadata and comments, persists them to the database, and updates job status.",
+    responses={
+        401: {"model": ErrorResponse, "description": "YouTube API key missing or invalid"},
+        403: {"model": ErrorResponse, "description": "Comments are disabled on this video"},
+        404: {"model": ErrorResponse, "description": "Video or job not found"},
+        422: {"model": ErrorResponse, "description": "Invalid job ID format"},
+        429: {"model": ErrorResponse, "description": "YouTube API quota exceeded"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def ingest_job_comments_endpoint(
+    job_id: str = FastApiPath(..., description="The UUID of the analysis job"),
+    db: AsyncSession = Depends(get_db),
+    ingestion_service: IngestionService = Depends(get_ingestion_service),
+) -> JobStatusResponse:
+    """Performs video metadata and comment ingestion for a queued job."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    try:
+        await ingestion_service.ingest_job_comments(db=db, job_id=job_uuid)
+    except YouTubeCommentsDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Comments are disabled on this video.",
+        )
+    except YouTubeVideoNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video was not found or is private.",
+        )
+    except YouTubeQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="YouTube Data API quota exceeded. Please try again tomorrow.",
+        )
+    except YouTubeAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"YouTube authentication failed: {exc}",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except YouTubeAPIError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"YouTube Data API error: {exc}",
+        )
+
+    # Return updated job status
+    job = await JobService.get_job_by_id(db=db, job_id=job_uuid)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis job with ID '{job_id}' not found.",
+        )
+
+    return JobService.format_job_status_response(job)
 
 
 @router.get(
