@@ -1,0 +1,27 @@
+# Google MuRIL 5-Class Multilingual Sentiment Configuration
+experiment_name: "muril_multilingual_sentiment"
+model_architecture: "google/muril-base-cased"
+
+hyperparameters:
+  seed: 42
+  num_classes: 5
+  max_length: 128
+  batch_size: 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  epochs: 3
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 1
+  dropout_prob: 0.2
+
+loss:
+  use_weighted_loss: true
+
+paths:
+  save_dir: "ml/models/saved_weights/muril_sentiment_v1"
+  metrics_output: "ml/evaluation/reports/muril_metrics.json"
+
+data:
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42

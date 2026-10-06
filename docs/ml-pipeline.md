@@ -65,3 +65,19 @@ flowchart LR
 - **Sequence Length**: 128 tokens (covers >98% of YouTube comments without truncation).
 - **Loss Function**: Cross-Entropy Loss with balanced class weights when distribution asymmetry exceeds 2:1.
 - **Checkpointing**: Save top checkpoints based on Validation Macro F1.
+
+---
+
+## 5. Implementation Architecture & Modules
+
+The Phase 2 ML engine is structured into modular Python packages:
+- `ml.preprocessing.cleaner`: Normalizes Unicode NFKC, cleans URLs/mentions, sanitizes control chars, and reduces repeated characters.
+- `ml.preprocessing.detector`: Identifies Malayalam, Latin, Mixed, or Unknown scripts, and classifies linguistic codes (`ml`, `en`, `ml-en`, `unknown`).
+- `ml.data.dataset_loader`: Loads corpus splits with stratification, asserts Zero Data Leakage between splits, and computes balanced class weights.
+- `ml.models.baseline_model`: Classical TF-IDF (1,2 n-grams) + Logistic Regression benchmark.
+- `ml.models.muril_classifier`: Google MuRIL transformer backbone with 768-dim pooled representations, LayerNorm, Dropout (0.2), and 5-class linear head.
+- `ml.training.trainer`: PyTorch training loop with AdamW, linear warmup scheduler, and model checkpointing.
+- `ml.evaluation.metrics`: Computes Accuracy, Macro/Weighted F1, Per-class F1, and 5x5 confusion matrices.
+- `ml.evaluation.error_analyzer`: Evaluates model performance across 8 distinct linguistic challenge categories.
+- `ml.inference.predictor`: Production-ready prediction wrapper mapping raw comment text to structured sentiment distributions.
+

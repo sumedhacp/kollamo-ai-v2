@@ -1,0 +1,379 @@
+{
+  "experiment_name": "baseline_tfidf_logreg",
+  "timestamp": "2026-10-06T09:59:23.749637+00:00",
+  "git_commit_sha": "cf91968",
+  "preprocessing_version": "v1.0.0-nfkc-canonical",
+  "dataset_metadata": {
+    "total_samples": 60,
+    "train_samples": 42,
+    "val_samples": 6,
+    "test_samples": 12,
+    "class_counts": {
+      "positive": 12,
+      "negative": 12,
+      "neutral": 12,
+      "mixed": 12,
+      "unsupported": 12
+    },
+    "class_weights": {
+      "0": 1.0,
+      "1": 1.0,
+      "2": 1.0,
+      "3": 1.0,
+      "4": 1.0
+    },
+    "random_state": 42,
+    "sentiment_labels": [
+      "positive",
+      "negative",
+      "neutral",
+      "mixed",
+      "unsupported"
+    ]
+  },
+  "hyperparameters": {
+    "experiment_name": "baseline_tfidf_logreg",
+    "model_type": "logistic_regression",
+    "vectorizer": {
+      "ngram_range": [
+        1,
+        2
+      ],
+      "max_features": 5000,
+      "sublinear_tf": true,
+      "min_df": 1
+    },
+    "classifier": {
+      "C": 1.0,
+      "max_iter": 1000,
+      "class_weight": "balanced",
+      "random_state": 42
+    },
+    "data": {
+      "test_size": 0.2,
+      "val_size": 0.1,
+      "random_state": 42
+    }
+  },
+  "metrics": {
+    "accuracy": 0.3333,
+    "macro_precision": 0.4,
+    "macro_recall": 0.3333,
+    "macro_f1": 0.3371,
+    "weighted_f1": 0.3381,
+    "per_class_f1": {
+      "positive": 0.4,
+      "negative": 0.0,
+      "neutral": 0.3333,
+      "mixed": 0.2857,
+      "unsupported": 0.6667
+    },
+    "confusion_matrix": [
+      [
+        1,
+        0,
+        1,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        0
+      ],
+      [
+        0,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0,
+        1
+      ]
+    ],
+    "classification_report": {
+      "positive": {
+        "precision": 0.5,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.4,
+        "support": 3.0
+      },
+      "negative": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 2.0
+      },
+      "neutral": {
+        "precision": 0.25,
+        "recall": 0.5,
+        "f1-score": 0.3333333333333333,
+        "support": 2.0
+      },
+      "mixed": {
+        "precision": 0.25,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.2857142857142857,
+        "support": 3.0
+      },
+      "unsupported": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1-score": 0.6666666666666666,
+        "support": 2.0
+      },
+      "accuracy": 0.3333333333333333,
+      "macro avg": {
+        "precision": 0.4,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.3371428571428571,
+        "support": 12.0
+      },
+      "weighted avg": {
+        "precision": 0.3958333333333333,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.33809523809523806,
+        "support": 12.0
+      }
+    },
+    "inference_time_per_sample_ms": 0.166,
+    "error_analysis": {
+      "overall_diagnostic_accuracy": 0.0,
+      "total_probes_evaluated": 24,
+      "category_breakdown": {
+        "slang": {
+          "total_tested": 4,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "spelling_variation": {
+          "total_tested": 3,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "code_mixing": {
+          "total_tested": 3,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "sarcasm": {
+          "total_tested": 2,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "negation": {
+          "total_tested": 3,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "emojis": {
+          "total_tested": 3,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "short_comments": {
+          "total_tested": 4,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        },
+        "ambiguous": {
+          "total_tested": 2,
+          "correct": 0,
+          "accuracy": 0.0,
+          "error_rate": 1.0
+        }
+      },
+      "detailed_probe_results": [
+        {
+          "text": "Ee padam kidilan item aanu, tharumaru aavesham!",
+          "category": "slang",
+          "true_label": "positive",
+          "predicted_label": "2",
+          "is_correct": false
+        },
+        {
+          "text": "Full chali comedy aayirunnu, sahikkan pattiyilla.",
+          "category": "slang",
+          "true_label": "negative",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "Polichu adukki kalanju machane!",
+          "category": "slang",
+          "true_label": "positive",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "Theerumanam aayi, verum oola padam.",
+          "category": "slang",
+          "true_label": "negative",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Aadipoli cinima must watch!",
+          "category": "spelling_variation",
+          "true_label": "positive",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "Athipoli film, superb acting.",
+          "category": "spelling_variation",
+          "true_label": "positive",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "Adypoli experience aayirunnu.",
+          "category": "spelling_variation",
+          "true_label": "positive",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "First half super pace aayirunnu but second half full drag.",
+          "category": "code_mixing",
+          "true_label": "mixed",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Mass action scenes nannayi eduthittundu but logic zero.",
+          "category": "code_mixing",
+          "true_label": "mixed",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Lead actor killed it pakshe screenplay utterly disappointed.",
+          "category": "code_mixing",
+          "true_label": "mixed",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Aaha enthoru nalla padam, urangan nallathaanu!",
+          "category": "sarcasm",
+          "true_label": "negative",
+          "predicted_label": "1",
+          "is_correct": false
+        },
+        {
+          "text": "Oscar kodukkendi varum ee mahaa tharangalkku.",
+          "category": "sarcasm",
+          "true_label": "negative",
+          "predicted_label": "2",
+          "is_correct": false
+        },
+        {
+          "text": "Oru nalla scene polum ithil illa.",
+          "category": "negation",
+          "true_label": "negative",
+          "predicted_label": "1",
+          "is_correct": false
+        },
+        {
+          "text": "Kandu theerkkan pattathilla, valare mosham.",
+          "category": "negation",
+          "true_label": "negative",
+          "predicted_label": "1",
+          "is_correct": false
+        },
+        {
+          "text": "Aarum pokathirikkan sramikkuka.",
+          "category": "negation",
+          "true_label": "negative",
+          "predicted_label": "4",
+          "is_correct": false
+        },
+        {
+          "text": "Theatre explosion 🔥🔥🔥 best movie ever ❤️",
+          "category": "emojis",
+          "true_label": "positive",
+          "predicted_label": "0",
+          "is_correct": false
+        },
+        {
+          "text": "Valare bore aayirunnu 🤮👎🤮",
+          "category": "emojis",
+          "true_label": "negative",
+          "predicted_label": "1",
+          "is_correct": false
+        },
+        {
+          "text": "Songs kollam pakshe climax 😐",
+          "category": "emojis",
+          "true_label": "mixed",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Mass",
+          "category": "short_comments",
+          "true_label": "positive",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Chali",
+          "category": "short_comments",
+          "true_label": "negative",
+          "predicted_label": "4",
+          "is_correct": false
+        },
+        {
+          "text": "Kollam",
+          "category": "short_comments",
+          "true_label": "positive",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Disaster",
+          "category": "short_comments",
+          "true_label": "negative",
+          "predicted_label": "1",
+          "is_correct": false
+        },
+        {
+          "text": "Oru thavana kaanam, valiya sambhavam onnum alla pakshe kuzhappamilla.",
+          "category": "ambiguous",
+          "true_label": "mixed",
+          "predicted_label": "3",
+          "is_correct": false
+        },
+        {
+          "text": "Average padam, time passinu kollam.",
+          "category": "ambiguous",
+          "true_label": "neutral",
+          "predicted_label": "1",
+          "is_correct": false
+        }
+      ]
+    }
+  }
+}

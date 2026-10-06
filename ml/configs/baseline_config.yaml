@@ -1,0 +1,20 @@
+# TF-IDF + Logistic Regression Baseline Configuration
+experiment_name: "baseline_tfidf_logreg"
+model_type: "logistic_regression"
+
+vectorizer:
+  ngram_range: [1, 2]
+  max_features: 5000
+  sublinear_tf: true
+  min_df: 1
+
+classifier:
+  C: 1.0
+  max_iter: 1000
+  class_weight: "balanced"
+  random_state: 42
+
+data:
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42

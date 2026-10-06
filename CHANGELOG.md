@@ -9,14 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Phase 2 (v0.3.0)
-- Multilingual preprocessing pipeline for Malayalam, Manglish, English, and code-mixed text.
-- TF-IDF + Logistic Regression baseline establishment.
-- Google MuRIL 5-class fine-tuning pipeline with reproducible experiment tracking.
-
 ### Planned for Phase 3 (v0.4.0)
 - FastAPI core application with health check and sentiment endpoints.
 - PostgreSQL / Supabase async database integration with Alembic migrations.
+
+---
+
+## [0.3.0] - 2026-10-06
+
+### Added
+- Complete multilingual ML/NLP pipeline in `ml/` for Malayalam, Manglish, Code-mixed, and English comments.
+- Preprocessing module (`ml/preprocessing/cleaner.py`) with Unicode NFKC normalization, URL/mention sanitization, repeated character collapse, and zero-width joiner preservation.
+- Language and script detector (`ml/preprocessing/detector.py`) identifying Malayalam, Latin, Mixed, and Unknown scripts.
+- Curated multi-script research corpus (`ml/data/corpus.json`) covering 5 classes and 8 linguistic phenomena.
+- Dataset loader with stratification, inverse frequency class weights, and strict zero-data-leakage verification.
+- Classical TF-IDF + Logistic Regression baseline benchmark (`ml/models/baseline_model.py`) establishing 33.3% accuracy / 0.3371 Macro F1 baseline.
+- Google MuRIL transformer neural classifier architecture (`ml/models/muril_classifier.py`) with 768-dim pooled representations, LayerNorm, Dropout, and 5-class linear head.
+- Training loop (`ml/training/trainer.py`) with AdamW, linear warmup scheduler, and model checkpointing.
+- Evaluation metrics engine (`ml/evaluation/metrics.py`) and 8-phenomenon linguistic error analyzer (`ml/evaluation/error_analyzer.py`).
+- Inference predictor engine (`ml/inference/predictor.py`) enforcing the probability interpretation contract (not percentages of emotion).
+- Comprehensive pytest test suite (15 unit tests passing).
+- Detailed documentation: `docs/ml-pipeline.md`, `docs/evaluation.md`, and `docs/model-card.md`.
 
 ### Planned for Phase 4 (v0.5.0)
 - YouTube Data API v3 integration with pagination and quota management.
