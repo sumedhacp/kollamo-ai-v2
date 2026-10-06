@@ -1,0 +1,85 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+credentials.json
+client_secrets.json
+
+# Operating System
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+frontend/dist/
+frontend/dist-ssr/
+frontend/.next/
+frontend/out/
+
+# ML / PyTorch / Hugging Face Models & Large Artifacts
+ml/models/checkpoints/
+ml/models/saved_weights/
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+*.h5
+wandb/
+mlruns/
+.cache/
+huggingface/
+cached_datasets/
+
+# Database & Storage
+*.sqlite3
+*.db
+pgdata/
+redisdata/
+
+# IDE & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

@@ -1,0 +1,95 @@
+name: Kollamo.ai Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - 'phase/**'
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+      - 'phase/**'
+
+jobs:
+  lint-and-secret-audit:
+    name: Secrets & Lint Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check for Uncommitted Secrets
+        run: |
+          echo "Scanning for accidental credential leaks..."
+          ! git grep -i -E "youtube_api_key\s*=\s*['\"][A-Za-z0-9_-]{20,}['\"]" .
+          ! git grep -i -E "postgres://.*:.*@" .
+        shell: bash
+
+  backend-verification:
+    name: Backend Lint & Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Run Pytest
+        run: |
+          if [ -d tests ]; then python -m pytest tests/ -v; else echo "No backend tests directory found yet."; fi
+
+  frontend-verification:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package.json ]; then npm ci || npm install; else echo "No package.json yet."; fi
+
+      - name: Run Build
+        run: |
+          if [ -f package.json ]; then npm run build; else echo "No build script yet."; fi
+
+  ml-verification:
+    name: ML Pipeline Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Run ML Unit Tests
+        run: |
+          if [ -d tests ]; then python -m pytest tests/ -v; else echo "No ML tests directory found yet."; fi
