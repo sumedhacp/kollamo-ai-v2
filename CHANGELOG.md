@@ -9,11 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Phase 1 (v0.2.0)
-- React + Vite + TypeScript frontend scaffolding.
-- Route implementation: Home, Sandbox, YouTube Analyze, Dashboard skeleton.
-- Accessible UI primitives and semantic sentiment badges.
-
 ### Planned for Phase 2 (v0.3.0)
 - Multilingual preprocessing pipeline for Malayalam, Manglish, English, and code-mixed text.
 - TF-IDF + Logistic Regression baseline establishment.
@@ -43,6 +38,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned for Phase 10 (v1.0.0)
 - Production containerization and release readiness.
+
+---
+
+## [0.2.0] - 2026-10-06
+
+### Added
+- Complete React + Vite + TypeScript frontend shell in `frontend/`.
+- Tailwind CSS configuration with semantic sentiment color palette (Positive, Negative, Neutral, Mixed, Unsupported).
+- Routing structure via React Router:
+  - `/` (Home landing page with hero, problem section, supported languages, 3-step workflow, and CTA).
+  - `/sandbox` (Single comment testing tool with live script detection, character counter, and multi-state result panel).
+  - `/analyze` (YouTube comment ingestion configuration with sample sizes 50-ALL, sorting modes, URL validation, and execution panel).
+  - `/dashboard` (Audience Intelligence Dashboard skeleton with 6 summary cards, charts, and filterable comments table).
+  - `*` (Accessible 404 handler).
+- 12 accessible UI primitives: `Button`, `Input`, `Textarea`, `Card`, `Badge` (with `SentimentBadge`), `Alert`, `Modal`, `Table`, `Tabs`, `Skeleton`, `Progress`, `EmptyState`.
+- Zero fake AI predictions guarantee in sandbox and dashboard skeletons per `AGENTS.md`.
+- Comprehensive Vitest unit and integration test suite (8 tests passing).
+- Production build verified (`dist/` bundle created cleanly).
 
 ---
 

@@ -39,4 +39,23 @@ Every view, card, chart, and table must implement four distinct states:
 - `/`: Landing page introducing the code-mixed sentiment problem, features, and non-technical workflow.
 - `/sandbox`: Single-comment testing sandbox with script detection, character counter, and confidence distribution breakdown.
 - `/analyze`: YouTube ingestion form supporting sample sizes (50, 100, 250, 500, ALL) and sort modes.
-- `/analysis/:jobId`: Live job tracker transitioning seamlessly into the Audience Intelligence Dashboard with filters, charts, and PDF export.
+- `/dashboard`: Audience Intelligence Dashboard skeleton with sentiment breakdowns, charts, and comment table.
+
+---
+
+## 5. Phase 1 Component Library Implementation
+
+The frontend architecture includes 12 modular accessible primitives located in `frontend/src/components/ui/`:
+1. `Button`: Primary, secondary, outline, ghost, and danger variants with built-in loading spinners.
+2. `Input`: Accessible text inputs with error state handling and left/right icon support.
+3. `Textarea`: Resizable multi-line inputs with helper and validation text.
+4. `Card`: Structured container primitives (`CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`).
+5. `Badge` & `SentimentBadge`: Standard pill tags and dedicated semantic sentiment badges with accessible icons for all 5 sentiment classes.
+6. `Alert`: Semantic alert notifications (info, success, warning, error) with distinct iconography.
+7. `Modal`: Accessible dialogs with backdrop blur, ESC key dismiss, and focus confinement.
+8. `Table`: Responsive tabular views (`TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`).
+9. `Tabs`: Multi-view navigation toggles with count chips and active states.
+10. `Skeleton`: Pulse animation placeholders matching production layouts.
+11. `Progress`: Accessible progress bars with real-time percentage indicators.
+12. `EmptyState`: Contextual illustration and call-to-action wrapper for zero-data views.
+
