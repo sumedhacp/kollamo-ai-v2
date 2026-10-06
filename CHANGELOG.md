@@ -9,10 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Phase 5 (v0.6.0)
-- Celery + Redis asynchronous background task queue.
+### Planned for Phase 6 (v0.7.0)
+- Frontend-backend integration with real-time job progress polling.
 
 ---
+
+## [0.6.0] - 2026-10-06
+
+### Added
+- Celery asynchronous application configuration (`backend/app/workers/celery_app.py`) with Redis message broker and result backend.
+- Background task pipeline `process_youtube_analysis_job` and `run_analysis_pipeline` with micro-batching (`batch_size=32`).
+- Asynchronous inference engine loading ML weights once per worker process with zero in-request training.
+- Live progress tracking updating `processed_comments` and `total_comments` atomically in PostgreSQL.
+- Audience intelligence metric rollup engine computing 5-class distribution percentages and engagement like metrics per sentiment.
+- Job completion and error handling transitions (`queued` -> `running` -> `completed` / `failed`).
+- Worker fallback endpoint `POST /api/analyze/{job_id}/process` for direct pipeline execution.
+- High-throughput micro-batching benchmark fixture verifying 3,500+ comments processed with verified percentages and metrics.
+- 6 new tests in `test_celery_tasks.py`, `test_async_benchmark.py`, and `test_analyze.py` (50 total passing tests).
+
+---
+
 
 ## [0.5.0] - 2026-10-06
 

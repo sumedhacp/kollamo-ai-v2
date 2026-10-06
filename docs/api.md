@@ -122,7 +122,14 @@ Triggers comment thread retrieval from the official YouTube Data API v3 and pers
 - `404 Not Found`: Video not found or private.
 - `429 Too Many Requests`: YouTube Data API quota exceeded.
 
+### `POST /api/analyze/{job_id}/process`
+Synchronously processes the full sentiment inference and metrics generation pipeline for a job (worker fallback).
+
+#### Response: `200 OK`
+Returns the completed `JobStatusResponse` with full aggregated `summary` metrics.
+
 ---
+
 
 
 ## 4. Job Telemetry & Audience Intelligence

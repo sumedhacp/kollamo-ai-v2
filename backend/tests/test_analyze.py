@@ -101,3 +101,21 @@ async def test_get_analysis_job_invalid_uuid(async_client: AsyncClient) -> None:
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "HTTP_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_process_job_pipeline_endpoint(async_client: AsyncClient) -> None:
+    """Verifies POST /api/analyze/{job_id}/process executes pipeline and returns status."""
+    from unittest.mock import AsyncMock, patch
+
+    create_resp = await async_client.post(
+        "/api/analyze",
+        json={"youtube_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "sample_size": 50},
+    )
+    job_id = create_resp.json()["job_id"]
+
+    with patch("backend.app.workers.tasks.run_analysis_pipeline", new_callable=AsyncMock) as mock_pipeline:
+        mock_pipeline.return_value = {"status": "completed"}
+        proc_resp = await async_client.post(f"/api/analyze/{job_id}/process")
+        assert proc_resp.status_code == 200
+        assert mock_pipeline.called

@@ -4,6 +4,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Path as FastApiPath, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.config import settings
+from backend.app.core.logging import logger
 from backend.app.db.session import get_db
 from backend.app.schemas.analyze import (
     AnalyzeRequest,
@@ -44,12 +46,66 @@ async def create_analysis_job(
 ) -> AnalyzeResponse:
     """Dispatches a YouTube comment ingestion and classification job."""
     job = await JobService.create_analysis_job(db=db, request=request)
+
+    # Dispatch to Celery worker queue if not in testing without active broker
+    if settings.ENVIRONMENT != "test":
+        try:
+            from backend.app.workers.tasks import process_youtube_analysis_job
+            process_youtube_analysis_job.delay(str(job.id))
+            logger.info(f"Enqueued Celery background task for job {job.id}")
+        except Exception as exc:
+            logger.warning(
+                f"Could not dispatch Celery task for job {job.id} (broker may be offline): {exc}"
+            )
+
     return AnalyzeResponse(
         job_id=str(job.id),
         status=job.status,
         message="Analysis job queued successfully",
         created_at=job.created_at,
     )
+
+
+@router.post(
+    "/{job_id}/process",
+    response_model=JobStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Process analysis pipeline directly (synchronous worker fallback)",
+    description="Executes sentiment batch classification and summary metric generation directly.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Job not found"},
+        422: {"model": ErrorResponse, "description": "Invalid job ID"},
+        500: {"model": ErrorResponse, "description": "Processing failure"},
+    },
+)
+async def process_job_pipeline_endpoint(
+    job_id: str = FastApiPath(..., description="The UUID of the analysis job"),
+    db: AsyncSession = Depends(get_db),
+) -> JobStatusResponse:
+    """Synchronously executes sentiment processing and metrics generation for a job."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    from backend.app.workers.tasks import run_analysis_pipeline
+
+    try:
+        await run_analysis_pipeline(job_id=job_uuid, session=db)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+    job = await JobService.get_job_by_id(db=db, job_id=job_uuid)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found.")
+
+    return JobService.format_job_status_response(job)
+
 
 
 @router.post(
