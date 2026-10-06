@@ -3,6 +3,7 @@ import {
   SampleSize,
   SortMode,
   AnalysisJob,
+  CommentItem,
   HealthStatus,
   AnalyzeJobCreateResponse,
   ApiErrorEnvelope,
@@ -142,5 +143,30 @@ export const api = {
         method: 'POST',
       }
     );
+  },
+
+  /**
+   * Retrieve comments for an analysis job with optional filters: GET /api/analyze/{job_id}/comments
+   */
+  async getJobComments(
+    jobId: string,
+    params: {
+      sentiment?: string;
+      script?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<CommentItem[]> {
+    const searchParams = new URLSearchParams();
+    if (params.sentiment) searchParams.set('sentiment', params.sentiment);
+    if (params.script) searchParams.set('script', params.script);
+    if (params.search) searchParams.set('search', params.search);
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+    const qs = searchParams.toString();
+    const endpoint = `/analyze/${encodeURIComponent(jobId)}/comments${qs ? `?${qs}` : ''}`;
+    return request<CommentItem[]>(endpoint, { method: 'GET' });
   },
 };

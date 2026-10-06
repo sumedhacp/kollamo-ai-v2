@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-10-07
+
+### Added
+- Complete Audience Intelligence Dashboard in `frontend/src/pages/Dashboard.tsx` with rich analytics, script breakdowns, and drill-down controls.
+- Net Sentiment Approval Index computing spread between positive and negative reactions with categorical consensus badges (`Overwhelmingly Positive`, `Predominantly Favorable`, `Mixed / Divided`, `Critical`).
+- Multi-view chart analytics with tab switcher toggling between 5-class distribution and linguistic script breakdown (Malayalam, Latin, Code-Mixed).
+- Discussion theme chips extracting high-frequency discussion topics (BGM/Music, Direction, Acting, Pacing, Theatres) enabling 1-click filtering.
+- Comments Intelligence Explorer with multi-attribute filtering (sentiment, script, free text), sort order selection (Likes, Confidence, Recent), author avatars, and client-side pagination (10 per page).
+- Instant client-side JSON and CSV data exports with formatted filename metadata.
+- Pre-loaded academic demonstration dataset (`frontend/src/data/sampleJob.ts`) allowing full offline exploration of video intelligence without external API dependency.
+- Dedicated backend endpoint `GET /api/analyze/{job_id}/comments` with query filtering (sentiment, script, search, pagination).
+- Eager-loading and mapping of comments and predictions in `JobService.format_job_status_response`.
+- 7 new Vitest dashboard unit & integration tests (`frontend/src/test/dashboard.test.tsx`, 24 total frontend tests passing) and 2 new pytest endpoint tests (37 backend tests, 52 total pytest tests passing).
+
+---
+
 ## [0.7.0] - 2026-10-07
 
 ### Added

@@ -1,7 +1,8 @@
 """YouTube Ingestion and Batch Analysis Job Endpoints."""
 
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Path as FastApiPath, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Path as FastApiPath, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import settings
@@ -11,6 +12,7 @@ from backend.app.schemas.analyze import (
     AnalyzeRequest,
     AnalyzeResponse,
     JobStatusResponse,
+    CommentItem,
 )
 from backend.app.schemas.error import ErrorResponse
 from backend.app.services.job_service import JobService
@@ -214,3 +216,63 @@ async def get_analysis_job_status(
         )
 
     return JobService.format_job_status_response(job)
+
+
+@router.get(
+    "/{job_id}/comments",
+    response_model=List[CommentItem],
+    status_code=status.HTTP_200_OK,
+    summary="Get classified comments for an analysis job",
+    description="Returns comment threads, script detection, and MuRIL classifications with optional filtering.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Analysis job not found"},
+        422: {"model": ErrorResponse, "description": "Invalid job ID format"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def get_job_comments(
+    job_id: str = FastApiPath(..., description="The UUID of the analysis job"),
+    sentiment: Optional[str] = Query(None, description="Filter by sentiment label"),
+    script: Optional[str] = Query(None, description="Filter by script type"),
+    search: Optional[str] = Query(None, description="Search comment text"),
+    limit: int = Query(250, ge=1, le=1000, description="Max comments to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db: AsyncSession = Depends(get_db),
+) -> List[CommentItem]:
+    """Retrieves individual analyzed comments for an existing job with filtering."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    job = await JobService.get_job_by_id(db=db, job_id=job_uuid)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis job with ID '{job_id}' not found.",
+        )
+
+    formatted = JobService.format_job_status_response(job)
+    comments = formatted.comments or []
+
+    # Apply sentiment filter
+    if sentiment and sentiment.lower() != "all":
+        comments = [c for c in comments if c.sentiment.lower() == sentiment.lower()]
+
+    # Apply script filter
+    if script and script.lower() != "all":
+        comments = [c for c in comments if c.detected_script.lower() == script.lower()]
+
+    # Apply search filter
+    if search:
+        s_lower = search.lower()
+        comments = [
+            c
+            for c in comments
+            if s_lower in c.original_text.lower()
+            or (c.translated_text and s_lower in c.translated_text.lower())
+        ]
+    return comments[offset : offset + limit]

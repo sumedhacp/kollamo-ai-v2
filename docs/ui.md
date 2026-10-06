@@ -59,3 +59,15 @@ The frontend architecture includes 12 modular accessible primitives located in `
 11. `Progress`: Accessible progress bars with real-time percentage indicators.
 12. `EmptyState`: Contextual illustration and call-to-action wrapper for zero-data views.
 
+---
+
+## 6. Audience Intelligence Dashboard Architecture (Phase 7)
+
+The `/dashboard` route provides comprehensive visual and granular audience analytics:
+- **Net Sentiment Approval Index**: Single-metric headline index computing positive-negative sentiment spread with categorical consensus badges (`Overwhelmingly Positive`, `Predominantly Favorable`, `Mixed / Divided`, `Critical`).
+- **Linguistic Script Analytics**: Proportion of pure Malayalam script, Latin script (Manglish / English), and Malayalam-English code-mixed discussions.
+- **Engagement Impact**: Comparative like distributions and average likes per sentiment category.
+- **Key Discussion Themes**: High-frequency topic chips enabling 1-click filtering across discussions (e.g., BGM/Music, Direction, Acting, Pacing).
+- **Comments Intelligence Explorer**: Real-time multi-attribute filtering (sentiment, script, free text) with pagination (10 per page), English translation accordions, and sort order controls.
+- **Data Export**: Instant client-side JSON and CSV data exports for external academic and market research.
+- **Interactive Exploration Demo**: Pre-loaded academic dataset (`demo-aavesham-2026-sample`) allowing immediate full-feature evaluation even without YouTube API credentials.

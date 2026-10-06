@@ -119,3 +119,25 @@ async def test_process_job_pipeline_endpoint(async_client: AsyncClient) -> None:
         proc_resp = await async_client.post(f"/api/analyze/{job_id}/process")
         assert proc_resp.status_code == 200
         assert mock_pipeline.called
+
+
+@pytest.mark.asyncio
+async def test_get_job_comments_endpoint(async_client: AsyncClient) -> None:
+    """Verifies GET /api/analyze/{job_id}/comments returns comment list."""
+    create_resp = await async_client.post(
+        "/api/analyze",
+        json={"youtube_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "sample_size": 50},
+    )
+    job_id = create_resp.json()["job_id"]
+
+    comments_resp = await async_client.get(f"/api/analyze/{job_id}/comments")
+    assert comments_resp.status_code == 200
+    assert isinstance(comments_resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_get_job_comments_not_found(async_client: AsyncClient) -> None:
+    """Verifies 404 for non-existent job comments."""
+    random_uuid = str(uuid.uuid4())
+    comments_resp = await async_client.get(f"/api/analyze/{random_uuid}/comments")
+    assert comments_resp.status_code == 404

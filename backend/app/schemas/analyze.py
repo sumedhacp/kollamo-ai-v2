@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Dict, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 
 # Regex for YouTube video URL validation
@@ -118,6 +118,22 @@ class JobSummary(BaseModel):
     engagement_metrics: EngagementMetrics
 
 
+class CommentItem(BaseModel):
+    """Detailed comment-level classification item for audience intelligence."""
+
+    comment_id: str = Field(..., description="Unique comment identifier")
+    author_display_name: str = Field(default="Anonymous", description="Author screen name")
+    like_count: int = Field(default=0, description="Comment thumbs-up like count")
+    reply_count: int = Field(default=0, description="Total replies count")
+    original_text: str = Field(..., description="Original raw comment text")
+    detected_language: str = Field(default="unknown", description="Detected language code")
+    detected_script: str = Field(default="Unknown", description="Detected script type")
+    sentiment: str = Field(default="neutral", description="Predicted sentiment label")
+    confidence: float = Field(default=0.0, description="Classification confidence score")
+    translated_text: Optional[str] = Field(None, description="English translation if available")
+    published_at: Optional[datetime] = Field(None, description="Original publication timestamp")
+
+
 class JobStatusResponse(BaseModel):
     """Detailed telemetry and results response for GET /api/analyze/{job_id}."""
 
@@ -136,6 +152,9 @@ class JobStatusResponse(BaseModel):
     total_comments: int = Field(default=0, description="Total comments discovered/targeted")
     video: Optional[VideoSummary] = Field(None, description="Video metadata if available")
     summary: Optional[JobSummary] = Field(None, description="Audience metrics if available")
+    comments: Optional[List[CommentItem]] = Field(
+        None, description="Analyzed comments with fine-grained predictions"
+    )
     created_at: datetime = Field(..., description="Queueing timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
     error: Optional[str] = Field(None, description="Failure diagnostic message if status is 'failed'")

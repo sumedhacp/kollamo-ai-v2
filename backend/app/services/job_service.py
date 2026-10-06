@@ -1,7 +1,7 @@
 """Service for Analysis Jobs and Video Management."""
 
 import uuid
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from backend.app.core.logging import logger
 from backend.app.models.job import AnalysisJob
 from backend.app.models.video import Video
+from backend.app.models.comment import Comment
 from backend.app.models.summary_metrics import SummaryMetric
 from backend.app.schemas.analyze import (
     AnalyzeRequest,
@@ -18,6 +19,7 @@ from backend.app.schemas.analyze import (
     SentimentCounts,
     SentimentPercentages,
     EngagementMetrics,
+    CommentItem,
     extract_youtube_video_id,
 )
 
@@ -76,6 +78,7 @@ class JobService:
             .options(
                 selectinload(AnalysisJob.video),
                 selectinload(AnalysisJob.summary_metric),
+                selectinload(AnalysisJob.comments).selectinload(Comment.prediction),
             )
             .where(AnalysisJob.id == job_id)
         )
@@ -113,6 +116,28 @@ class JobService:
                 ),
             )
 
+        comments_list: Optional[List[CommentItem]] = None
+        if job.comments:
+            comments_list = []
+            for c in job.comments:
+                sentiment = c.prediction.sentiment if c.prediction else "neutral"
+                confidence = c.prediction.confidence if c.prediction else 0.0
+                comments_list.append(
+                    CommentItem(
+                        comment_id=c.comment_id,
+                        author_display_name=c.author_display_name or "Anonymous",
+                        like_count=c.like_count or 0,
+                        reply_count=c.reply_count or 0,
+                        original_text=c.original_text,
+                        detected_language=c.detected_language or "unknown",
+                        detected_script=c.detected_script or "Unknown",
+                        sentiment=sentiment,
+                        confidence=confidence,
+                        translated_text=c.translated_text,
+                        published_at=c.published_at,
+                    )
+                )
+
         return JobStatusResponse(
             job_id=str(job.id),
             status=job.status,
@@ -121,6 +146,7 @@ class JobService:
             total_comments=job.total_comments,
             video=video_summary,
             summary=job_summary,
+            comments=comments_list,
             created_at=job.created_at,
             completed_at=job.completed_at,
             error=job.error_message,
