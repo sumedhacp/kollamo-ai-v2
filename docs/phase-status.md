@@ -13,7 +13,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 | **Phase 2** | ML/NLP Foundation | Phase 0, Phase 1 | **COMPLETE** | `phase/02-ml` | `4b77551` | `v0.3.0` |
 | **Phase 3** | **FastAPI Backend** | Phase 0, Phase 1, Phase 2 | **COMPLETE** | `phase/03-backend` | `a1095c3` | `v0.4.0` |
 | **Phase 4** | **YouTube Ingestion** | Phase 0, Phase 3 (Rec: Phase 2) | **COMPLETE** | `phase/04-ingestion` | `f4821e5` | `v0.5.0` |
-| **Phase 5** | **Celery + Redis Async** | Phase 3, Phase 4 | **COMPLETE** | `phase/05-async` | - | `v0.6.0` |
+| **Phase 5** | **Celery + Redis Async** | Phase 3, Phase 4 | **COMPLETE** | `phase/05-async` | `df5e11d` | `v0.6.0` |
 | **Phase 6** | Frontend/Backend Integration | Phase 1, 2, 3, 4, 5 (ALL COMPLETE) | PENDING | `phase/06-integration` | - | `v0.7.0` |
 | **Phase 7** | Audience Intelligence Dashboard | Phase 6 | PENDING | `phase/07-dashboard` | - | `v0.8.0` |
 | **Phase 8** | Translation + PDF Reports | Phase 7 | PENDING | `phase/08-reporting` | - | `v0.9.0` |
