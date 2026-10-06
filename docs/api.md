@@ -213,3 +213,15 @@ All error responses return a standardized structured envelope adhering to RFC 78
 | `404` | `HTTP_ERROR` | Requested entity (e.g., job ID) not found. |
 | `422` | `VALIDATION_ERROR` | Schema validation failed (empty text, oversized payload > 5000 chars, invalid URL). |
 | `500` | `INTERNAL_SERVER_ERROR` | Internal server error (traceback sanitized and hidden). |
+
+---
+
+## 6. Frontend Integration & Client Architecture
+
+The React/TypeScript frontend interacts with the backend through a strongly-typed service layer in `frontend/src/services/api.ts`:
+
+- **Client Layer (`api`)**: Methods include `checkHealth()`, `analyzeSentiment()`, `createAnalysisJob()`, `getJobStatus()`, and `processJob()`.
+- **Environment Configuration**: `VITE_API_BASE_URL` controls the endpoint URL, defaulting to `/api`.
+- **Dev Server Proxy**: Vite proxies `/api` directly to `http://localhost:8000/api` during local development, eliminating browser CORS setup friction.
+- **Error Handling**: Non-2xx responses are mapped to `ApiError` instances, retaining machine-readable error codes (`VALIDATION_ERROR`, `NETWORK_ERROR`, etc.) and validation error details for clear user feedback.
+- **Real-Time Telemetry Hook (`useJobPolling`)**: Subscribes to job lifecycle events at `1500ms` intervals with deterministic completion callbacks, automatic teardown, and fallback retry triggers.

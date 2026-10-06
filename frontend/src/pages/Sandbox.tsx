@@ -6,18 +6,20 @@ import { Badge, SentimentBadge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Sparkles, Languages, Info, RefreshCw } from 'lucide-react';
+import { Sparkles, Languages, Info, RefreshCw, Globe } from 'lucide-react';
 import { SingleSentimentResult } from '@/types';
+import { api, ApiError } from '@/services/api';
 
 export const Sandbox: React.FC = () => {
   const [text, setText] = useState('');
+  const [translate, setTranslate] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<{ message: string; code?: string } | null>(null);
   const [result, setResult] = useState<SingleSentimentResult | null>(null);
 
-  // Script detection heuristic for UI indicator
-  const detectedScript = useMemo(() => {
+  // Client-side quick script preview for instantaneous input feedback
+  const clientDetectedScript = useMemo(() => {
     if (!text.trim()) return 'None';
     const hasMalayalam = /[\u0D00-\u0D7F]/.test(text);
     const hasLatin = /[a-zA-Z]/.test(text);
@@ -46,6 +48,10 @@ export const Sandbox: React.FC = () => {
       label: 'English (Neutral)',
       text: 'When is the OTT release date announced for this film?',
     },
+    {
+      label: 'Manglish (Negative)',
+      text: 'Valare mosham direction. Total waste of time and money.',
+    },
   ];
 
   const handleAnalyze = async () => {
@@ -65,26 +71,23 @@ export const Sandbox: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // In Phase 1, we test the actual backend endpoint if running, or cleanly report pending connection
-      const response = await fetch('/api/sentiment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await api.analyzeSentiment(trimmed, translate);
       setResult(data);
-    } catch {
+    } catch (err: unknown) {
       // Per AGENTS.md rule: Zero fake AI results.
-      // We do NOT generate fake probabilities or mock sentiments here.
-      setApiError(
-        'The backend ML inference service (/api/sentiment) is scheduled for Phase 3 integration. In accordance with AGENTS.md, no fake predictions or mock AI results are generated.'
-      );
+      // We report real connection or inference errors cleanly.
       setResult(null);
+      if (err instanceof ApiError) {
+        setApiError({
+          message: err.message,
+          code: err.code,
+        });
+      } else {
+        setApiError({
+          message: err instanceof Error ? err.message : 'An unexpected error occurred during inference.',
+          code: 'UNEXPECTED_ERROR',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,6 +100,24 @@ export const Sandbox: React.FC = () => {
     setApiError(null);
   };
 
+  // Map sentiment classes to specific progress bar colors
+  const getProbabilityBarColor = (sentimentKey: string): string => {
+    switch (sentimentKey) {
+      case 'positive':
+        return 'bg-emerald-500';
+      case 'negative':
+        return 'bg-rose-500';
+      case 'neutral':
+        return 'bg-slate-400';
+      case 'mixed':
+        return 'bg-amber-500';
+      case 'unsupported':
+        return 'bg-zinc-400';
+      default:
+        return 'bg-brand-500';
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       {/* Page Header */}
@@ -104,9 +125,11 @@ export const Sandbox: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="secondary" className="gap-1">
             <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-            Interactive Tool
+            Live Neural Inference
           </Badge>
-          <span className="text-xs text-slate-500">Phase 1 UI Shell</span>
+          <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+            Phase 6 Integrated (Live Backend)
+          </span>
         </div>
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Comment Sentiment Sandbox</h1>
         <p className="text-base text-slate-600 mt-1">
@@ -143,13 +166,35 @@ export const Sandbox: React.FC = () => {
                     <span className="font-medium text-slate-700">Detected Script:</span>
                     <Badge variant="outline" size="sm" className="bg-slate-50">
                       <Languages className="w-3 h-3 text-brand-600 mr-1" />
-                      {detectedScript}
+                      {clientDetectedScript}
                     </Badge>
                   </div>
                   <span className={text.length >= maxChars ? 'text-rose-600 font-semibold' : ''}>
                     {text.length} / {maxChars} characters
                   </span>
                 </div>
+              </div>
+
+              {/* Translation Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50">
+                <div className="flex items-center gap-2.5">
+                  <Globe className="w-4 h-4 text-brand-600" />
+                  <div>
+                    <label htmlFor="translate-toggle" className="text-xs font-semibold text-slate-800 cursor-pointer block">
+                      Enable English Translation
+                    </label>
+                    <span className="text-[11px] text-slate-500 block">
+                      Translate regional Malayalam and Manglish comments for cross-lingual insight
+                    </span>
+                  </div>
+                </div>
+                <input
+                  id="translate-toggle"
+                  type="checkbox"
+                  checked={translate}
+                  onChange={(e) => setTranslate(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                />
               </div>
 
               {/* Validation alert */}
@@ -237,24 +282,27 @@ export const Sandbox: React.FC = () => {
                     <Skeleton className="h-3 w-4/6" />
                   </div>
                   <p className="text-xs text-center text-slate-500 pt-2 animate-pulse">
-                    Connecting to MuRIL inference pipeline...
+                    Evaluating comment with Google MuRIL inference pipeline...
                   </p>
                 </div>
               )}
 
-              {/* State 2: Error State (Real API disconnection in Phase 1) */}
+              {/* State 2: Error State */}
               {!isLoading && apiError && (
                 <div className="space-y-4" data-testid="sandbox-error-state">
-                  <Alert variant="warning" title="Backend Connection Pending (Phase 1)">
-                    {apiError}
+                  <Alert
+                    variant={apiError.code === 'NETWORK_ERROR' ? 'error' : 'warning'}
+                    title={apiError.code ? `API Error: ${apiError.code}` : 'Analysis Error'}
+                  >
+                    {apiError.message}
                   </Alert>
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
                     <div className="flex items-center gap-1.5 font-semibold text-slate-800">
                       <Info className="w-4 h-4 text-brand-600" />
-                      <span>Why are no results showing?</span>
+                      <span>Zero Fake AI Prediction Guarantee</span>
                     </div>
                     <p>
-                      Kollamo.ai strictly adheres to <strong>AGENTS.md</strong>: we never fake sentiment predictions with random generators or heuristic if/else blocks. Real inference will execute when Phase 2 (MuRIL fine-tuning) and Phase 3 (FastAPI backend) are connected in Phase 6.
+                      Kollamo.ai strictly adheres to academic rigor: we never substitute fake or randomly generated sentiments when backend services are unreachable. Ensure the FastAPI server is active at <code>http://localhost:8000</code>.
                     </p>
                   </div>
                 </div>
@@ -274,24 +322,34 @@ export const Sandbox: React.FC = () => {
               {/* State 4: Success State (When real result is returned) */}
               {!isLoading && result && (
                 <div className="space-y-6" data-testid="sandbox-result-state">
+                  {/* Original Text Display */}
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Original Text
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      <span>Original Comment</span>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" size="sm" className="capitalize text-[11px]">
+                          {result.detected_script}
+                        </Badge>
+                        <Badge variant="secondary" size="sm" className="font-mono text-[10px]">
+                          {result.detected_language}
+                        </Badge>
+                      </div>
                     </div>
                     <p className="text-sm text-slate-800 italic font-serif">
                       "{result.original_text}"
                     </p>
                   </div>
 
+                  {/* Summary Metric Badges */}
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                      <span className="text-slate-500 block">Top Sentiment:</span>
+                      <span className="text-slate-500 block">Classified Sentiment:</span>
                       <span className="font-bold text-slate-900 capitalize text-sm">
                         {result.sentiment}
                       </span>
                     </div>
                     <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                      <span className="text-slate-500 block">Confidence:</span>
+                      <span className="text-slate-500 block">Top Confidence:</span>
                       <span className="font-bold text-slate-900 text-sm">
                         {(result.confidence * 100).toFixed(1)}%
                       </span>
@@ -301,25 +359,46 @@ export const Sandbox: React.FC = () => {
                   {/* Class Probabilities Distribution */}
                   <div className="space-y-2">
                     <div className="text-xs font-semibold text-slate-700">
-                      Class Probability Distribution
+                      5-Class Probability Distribution
                     </div>
-                    {Object.entries(result.class_probabilities).map(([key, prob]) => (
-                      <div key={key} className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span className="capitalize text-slate-600">{key}</span>
-                          <span className="font-mono text-slate-800">
-                            {(prob * 100).toFixed(1)}%
-                          </span>
+                    {Object.entries(result.class_probabilities).map(([key, prob]) => {
+                      const percentage = (prob * 100).toFixed(1);
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="capitalize text-slate-600 font-medium">{key}</span>
+                            <span className="font-mono text-slate-800 font-medium">
+                              {percentage}%
+                            </span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${getProbabilityBarColor(key)}`}
+                              style={{ width: `${Math.max(Number(percentage), 1)}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-brand-600 rounded-full"
-                            style={{ width: `${prob * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+
+                  {/* English Translation Section (if present) */}
+                  {result.translated_text && (
+                    <div className="p-3.5 rounded-xl border border-brand-200 bg-brand-50/40 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-brand-900 flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5 text-brand-600" />
+                          English Translation
+                        </span>
+                        <Badge variant="outline" size="sm" className="bg-white text-[10px]">
+                          {result.translation_status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-800">
+                        {result.translated_text}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

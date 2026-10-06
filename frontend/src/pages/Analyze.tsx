@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Youtube, CheckCircle2, PlaySquare, Settings2, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Youtube,
+  CheckCircle2,
+  PlaySquare,
+  Settings2,
+  Clock,
+  BarChart3,
+  RefreshCw,
+  Video,
+  Eye,
+  Check,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,14 +19,18 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { SampleSize, SortMode } from '@/types';
+import { api, ApiError } from '@/services/api';
+import { useJobPolling } from '@/hooks/useJobPolling';
 
 export const Analyze: React.FC = () => {
+  const navigate = useNavigate();
+
   const [url, setUrl] = useState('');
   const [sampleSize, setSampleSize] = useState<SampleSize>(100);
   const [sortMode, setSortMode] = useState<SortMode>('top');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [apiNotice, setApiNotice] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<{ message: string; code?: string } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const sampleSizes: SampleSize[] = [50, 100, 250, 500, 'ALL'];
@@ -37,14 +53,25 @@ export const Analyze: React.FC = () => {
   ];
 
   const validateYouTubeUrl = (inputUrl: string): boolean => {
-    const regExp = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const regExp =
+      /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     return regExp.test(inputUrl.trim());
   };
+
+  // Real-time polling hook
+  const {
+    job,
+    isPolling,
+    error: pollingError,
+    refetch,
+  } = useJobPolling(activeJobId, {
+    intervalMs: 1500,
+  });
 
   const handleStartAnalysis = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
-    setApiNotice(null);
+    setSubmitError(null);
 
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
@@ -53,39 +80,54 @@ export const Analyze: React.FC = () => {
     }
 
     if (!validateYouTubeUrl(trimmedUrl)) {
-      setValidationError('Invalid YouTube URL. Please provide a standard link like https://www.youtube.com/watch?v=... or https://youtu.be/...');
+      setValidationError(
+        'Invalid YouTube URL. Please provide a standard link like https://www.youtube.com/watch?v=... or https://youtu.be/...'
+      );
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          youtube_url: trimmedUrl,
-          sample_size: sampleSize,
-          sort_mode: sortMode,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API responded with status ${response.status}`);
+      const response = await api.createAnalysisJob(trimmedUrl, sampleSize, sortMode);
+      setActiveJobId(response.job_id);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setSubmitError({ message: err.message, code: err.code });
+      } else {
+        setSubmitError({
+          message: err instanceof Error ? err.message : 'Failed to initialize analysis job.',
+          code: 'INITIALIZATION_ERROR',
+        });
       }
-
-      const data = await response.json();
-      setActiveJobId(data.job_id);
-    } catch {
-      // In Phase 1 UI shell, FastAPI and Celery backend are not yet active
-      setApiNotice(
-        'YouTube Ingestion & Asynchronous Analysis service (/api/analyze) is scheduled for Phase 4 (YouTube Ingestion) and Phase 5 (Celery + Redis). Per AGENTS.md rules, progress is never faked.'
-      );
-      setActiveJobId('demo-shell-pending');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleResetForm = () => {
+    setActiveJobId(null);
+    setUrl('');
+    setValidationError(null);
+    setSubmitError(null);
+  };
+
+  // Determine stage progression
+  const calculateStage = (status?: string, progress?: number): number => {
+    if (!status || status === 'queued') return 1;
+    if (status === 'running') {
+      const p = progress || 0;
+      if (p < 0.2) return 2; // Ingestion
+      if (p < 0.4) return 3; // Preprocessing
+      if (p < 0.9) return 4; // Inference
+      return 5; // Aggregation
+    }
+    if (status === 'completed') return 6;
+    return 1;
+  };
+
+  const currentStage = calculateStage(job?.status, job?.progress);
+  const progressPercent = Math.round((job?.progress ?? 0) * 100);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -94,9 +136,11 @@ export const Analyze: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="secondary" className="gap-1">
             <Youtube className="w-3.5 h-3.5 text-rose-600" />
-            Ingestion Pipeline
+            Asynchronous Pipeline
           </Badge>
-          <span className="text-xs text-slate-500">Phase 1 UI Shell</span>
+          <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+            Phase 6 Integrated
+          </span>
         </div>
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">YouTube Comment Analysis</h1>
         <p className="text-base text-slate-600 mt-1">
@@ -127,11 +171,13 @@ export const Analyze: React.FC = () => {
                     onChange={(e) => {
                       setUrl(e.target.value);
                       if (validationError) setValidationError(null);
+                      if (submitError) setSubmitError(null);
                     }}
                     placeholder="https://www.youtube.com/watch?v=..."
                     leftIcon={<Youtube className="w-4 h-4 text-rose-500" />}
                     error={validationError || undefined}
                     aria-label="YouTube Video URL"
+                    disabled={isSubmitting || Boolean(activeJobId && isPolling)}
                   />
 
                   {/* Sample Video Quick Fill */}
@@ -144,8 +190,10 @@ export const Analyze: React.FC = () => {
                         onClick={() => {
                           setUrl(sample.url);
                           setValidationError(null);
+                          setSubmitError(null);
                         }}
-                        className="text-brand-600 hover:text-brand-800 underline truncate max-w-[180px]"
+                        disabled={isSubmitting || Boolean(activeJobId && isPolling)}
+                        className="text-brand-600 hover:text-brand-800 underline truncate max-w-[180px] disabled:opacity-50"
                       >
                         {sample.title}
                       </button>
@@ -165,8 +213,9 @@ export const Analyze: React.FC = () => {
                         type="button"
                         role="radio"
                         aria-checked={sampleSize === size}
+                        disabled={isSubmitting || Boolean(activeJobId && isPolling)}
                         onClick={() => setSampleSize(size)}
-                        className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center select-none ${
+                        className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center select-none disabled:opacity-50 ${
                           sampleSize === size
                             ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -201,6 +250,7 @@ export const Analyze: React.FC = () => {
                           name="sort_mode"
                           value={opt.value}
                           checked={sortMode === opt.value}
+                          disabled={isSubmitting || Boolean(activeJobId && isPolling)}
                           onChange={() => setSortMode(opt.value)}
                           className="mt-0.5 text-brand-600 focus:ring-brand-500"
                         />
@@ -213,79 +263,206 @@ export const Analyze: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Submit Error Alert */}
+                {submitError && (
+                  <Alert variant="error" title={submitError.code || 'Job Dispatch Error'}>
+                    {submitError.message}
+                  </Alert>
+                )}
+
                 {/* Submit button */}
                 <Button
                   type="submit"
                   size="lg"
                   className="w-full"
                   isLoading={isSubmitting}
+                  disabled={isSubmitting || (Boolean(activeJobId) && isPolling)}
                 >
                   <PlaySquare className="w-4 h-4 mr-2" />
-                  Start Ingestion & Analysis
+                  {isSubmitting ? 'Queueing Analysis...' : 'Start Ingestion & Analysis'}
                 </Button>
               </form>
             </CardContent>
           </Card>
         </div>
 
-        {/* Progress & Architecture Panel */}
+        {/* Progress & Telemetry Panel */}
         <div className="lg:col-span-5 space-y-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-brand-600" />
-                Pipeline Execution Panel
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Settings2 className="w-4 h-4 text-brand-600" />
+                  Pipeline Execution Panel
+                </span>
+                {activeJobId && (
+                  <Badge
+                    variant={
+                      job?.status === 'completed'
+                        ? 'default'
+                        : job?.status === 'failed'
+                        ? 'negative'
+                        : 'secondary'
+                    }
+                    size="sm"
+                    className="capitalize"
+                  >
+                    {job?.status || 'Queued'}
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
-                Real-time progress telemetry and background job lifecycle.
+                Real-time progress telemetry and asynchronous worker lifecycle.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* If job submitted or triggered */}
+              {/* If job active */}
               {activeJobId ? (
                 <div className="space-y-4" data-testid="analyze-progress-panel">
-                  {apiNotice && (
-                    <Alert variant="info" title="Phase 1 Architectural Notice">
-                      {apiNotice}
-                    </Alert>
-                  )}
-
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">Pipeline Stage:</span>
-                      <Badge variant="outline" size="sm">
-                        Asynchronous Pipeline Scaffold
-                      </Badge>
-                    </div>
-
-                    <Progress value={0} max={100} />
-
-                    <div className="pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-2">
-                      <div className="font-medium text-slate-900 mb-1">Standard Lifecycle Stages:</div>
-                      <div className="space-y-1.5 pl-1">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                          <span>1. Queued in Redis</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                          <span>2. YouTube Data API v3 Ingestion</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                          <span>3. Malayalam Unicode Preprocessing</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                          <span>4. Google MuRIL Neural Inference</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                          <span>5. Metric Aggregation & Dashboard</span>
+                  {/* Video Metadata Card (when available) */}
+                  {job?.video && (
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                      <div className="flex items-start gap-2.5">
+                        <Video className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-semibold text-slate-900 truncate">
+                            {job.video.title}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                            <span>{job.video.channel_title}</span>
+                            {job.video.view_count !== undefined && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <Eye className="w-3 h-3 text-slate-400" />
+                                  {Number(job.video.view_count).toLocaleString()} views
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Polling Error Alert */}
+                  {pollingError && (
+                    <Alert variant="error" title="Pipeline Error">
+                      {pollingError.message}
+                    </Alert>
+                  )}
+
+                  {/* Progress Bar & Numerical Counter */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">
+                        {job?.status === 'completed'
+                          ? 'Analysis Complete'
+                          : job?.status === 'failed'
+                          ? 'Job Failed'
+                          : 'Processing Comments...'}
+                      </span>
+                      <span className="font-mono font-bold text-brand-700">
+                        {progressPercent}%
+                      </span>
+                    </div>
+
+                    <Progress value={progressPercent} max={100} />
+
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                      <span>Comments Evaluated:</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {job?.processed_comments || 0} / {job?.total_comments || sampleSize}
+                      </span>
+                    </div>
+
+                    {/* Step-by-step lifecycle indicators */}
+                    <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 space-y-2">
+                      <div className="font-medium text-slate-900 mb-1">Execution Stages:</div>
+                      <div className="space-y-1.5 pl-1">
+                        {[
+                          { step: 1, label: '1. Queued in Redis / PostgreSQL' },
+                          { step: 2, label: '2. YouTube Data API v3 Ingestion' },
+                          { step: 3, label: '3. Unicode NFKC & Script Classification' },
+                          { step: 4, label: '4. MuRIL Neural Sentiment Inference' },
+                          { step: 5, label: '5. Metric Aggregation & Engagement Rollup' },
+                        ].map((s) => {
+                          const isDone = currentStage > s.step;
+                          const isCurrent = currentStage === s.step;
+                          return (
+                            <div
+                              key={s.step}
+                              className={`flex items-center gap-2 ${
+                                isDone
+                                  ? 'text-emerald-700 font-medium'
+                                  : isCurrent
+                                  ? 'text-brand-700 font-semibold'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {isDone ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : isCurrent ? (
+                                <RefreshCw className="w-3.5 h-3.5 text-brand-600 animate-spin" />
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-slate-300 ml-1 mr-0.5" />
+                              )}
+                              <span>{s.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Actions when completed */}
+                  {job?.status === 'completed' && (
+                    <div className="space-y-3 pt-2">
+                      <Button
+                        size="lg"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => navigate(`/dashboard?job_id=${job.job_id}`)}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        View Audience Dashboard
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={handleResetForm}
+                      >
+                        Analyze Another Video
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Actions when failed */}
+                  {job?.status === 'failed' && (
+                    <div className="space-y-3 pt-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          if (job?.job_id) {
+                            api.processJob(job.job_id).then(() => refetch()).catch(() => {});
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                        Retry Processing
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={handleResetForm}
+                      >
+                        Try Different Video
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Empty state before triggering */

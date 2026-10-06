@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Sparkles, MessageSquare, Youtube, BarChart3, Menu, X, Globe2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ApiStatusIndicator } from '@/components/ui/api-status';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -58,8 +59,9 @@ export const Navbar: React.FC = () => {
             ))}
           </nav>
 
-          {/* Quick CTA button */}
+          {/* Quick CTA & API Status indicator */}
           <div className="hidden md:flex items-center gap-3">
+            <ApiStatusIndicator />
             <Link
               to="/sandbox"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-sm"
@@ -101,11 +103,12 @@ export const Navbar: React.FC = () => {
               {link.label}
             </Link>
           ))}
-          <div className="pt-2">
+          <div className="pt-2 flex items-center justify-between gap-3">
+            <ApiStatusIndicator />
             <Link
               to="/sandbox"
               onClick={() => setIsOpen(false)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800"
             >
               <MessageSquare className="w-4 h-4" />
               Try Sandbox

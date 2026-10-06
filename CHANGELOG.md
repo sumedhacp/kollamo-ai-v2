@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.7.0] - 2026-10-07
 
-### Planned for Phase 6 (v0.7.0)
-- Frontend-backend integration with real-time job progress polling.
+### Added
+- Frontend API client service layer (`frontend/src/services/api.ts`) with typed endpoints for health, sentiment inference, job creation, and telemetry polling.
+- Standardized `ApiError` class with RFC error envelope parsing, status codes, and connection failure handling.
+- Real-time job polling hook (`frontend/src/hooks/useJobPolling.ts`) with configurable intervals, status transition callbacks, and error recovery.
+- Live backend connection status indicator (`frontend/src/components/ui/api-status.tsx`) integrated into navigation bar.
+- Connected Comment Sentiment Sandbox (`frontend/src/pages/Sandbox.tsx`) to live `POST /api/sentiment` inference endpoint with 5-class distribution bars and English translation display.
+- Connected YouTube Analysis page (`frontend/src/pages/Analyze.tsx`) to live `POST /api/analyze` and real-time polling pipeline with 5-stage progress lifecycle indicators, video metadata preview, and navigation CTAs.
+- Integrated Audience Intelligence Dashboard (`frontend/src/pages/Dashboard.tsx`) with dynamic `job_id` query parameter loading, summary metric cards, interactive distribution charts, and comment intelligence table.
+- Vite development server proxy configuration (`frontend/vite.config.ts`) routing `/api` requests to backend at `http://localhost:8000`.
+- Comprehensive frontend integration test suite (`frontend/src/test/integration.test.tsx`) covering API layer, Sandbox live inference, Analyze real-time polling, and Dashboard telemetry (17/17 Vitest tests passing).
 
 ---
+
 
 ## [0.6.0] - 2026-10-06
 

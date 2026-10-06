@@ -14,13 +14,13 @@ export interface ClassProbabilities {
 
 export interface SingleSentimentResult {
   original_text: string;
-  detected_language: DetectedLanguage;
-  detected_script: DetectedScript;
+  detected_language: DetectedLanguage | string;
+  detected_script: DetectedScript | string;
   sentiment: SentimentClass;
   confidence: number;
   class_probabilities: ClassProbabilities;
-  translation_status: 'translated' | 'untranslated' | 'not_needed' | 'failed';
-  translated_text?: string;
+  translation_status: string;
+  translated_text?: string | null;
 }
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -99,4 +99,31 @@ export interface AnalysisJob {
   created_at: string;
   completed_at?: string;
   error?: string | null;
+}
+
+export interface ApiErrorDetail {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+export interface ApiErrorEnvelope {
+  error: ApiErrorDetail;
+}
+
+export interface HealthStatus {
+  status: string;
+  service: string;
+  version: string;
+  environment: string;
+  database: string;
+  redis: string;
+  ml_model: string;
+}
+
+export interface AnalyzeJobCreateResponse {
+  job_id: string;
+  status: JobStatus | string;
+  message: string;
+  created_at: string;
 }
