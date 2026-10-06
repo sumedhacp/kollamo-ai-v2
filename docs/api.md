@@ -16,7 +16,7 @@ Checks server, database, Redis broker, and ML inference readiness.
 ```json
 {
   "status": "healthy",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "services": {
     "database": "connected",
     "redis": "connected",
@@ -144,3 +144,34 @@ Retrieves progress, status, and audience intelligence summary metrics for a job.
   "error": null
 }
 ```
+
+---
+
+## 5. Error Response Envelope
+
+All error responses return a standardized structured envelope adhering to RFC 7807 problem principles.
+
+### Error Envelope Schema
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed. Please check the payload parameters.",
+    "details": [
+      {
+        "loc": ["body", "text"],
+        "msg": "Comment text cannot be empty or contain only whitespace.",
+        "type": "value_error"
+      }
+    ]
+  }
+}
+```
+
+### Standard Error Codes
+| HTTP Status | Code | Description |
+| :--- | :--- | :--- |
+| `400` | `BAD_REQUEST` | Malformed syntax or invalid client input. |
+| `404` | `HTTP_ERROR` | Requested entity (e.g., job ID) not found. |
+| `422` | `VALIDATION_ERROR` | Schema validation failed (empty text, oversized payload > 5000 chars, invalid URL). |
+| `500` | `INTERNAL_SERVER_ERROR` | Internal server error (traceback sanitized and hidden). |

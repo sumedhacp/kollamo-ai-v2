@@ -9,9 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Phase 3 (v0.4.0)
-- FastAPI core application with health check and sentiment endpoints.
-- PostgreSQL / Supabase async database integration with Alembic migrations.
+### Planned for Phase 4 (v0.5.0)
+- YouTube Data API v3 integration with pagination and quota management.
+
+---
+
+## [0.4.0] - 2026-10-06
+
+### Added
+- Complete FastAPI backend application in `backend/app/` with non-blocking async architecture.
+- Centralized configuration system in `backend/app/core/config.py` using Pydantic Settings loading from `.env`.
+- Structured logging configuration in `backend/app/core/logging.py` with automatic credential and token sanitization filter.
+- Async SQLAlchemy 2.0 database engine, session factory, and `get_db` dependency in `backend/app/db/session.py`.
+- 6 relational database entity models in `backend/app/models/` (`Video`, `AnalysisJob`, `Comment`, `Prediction`, `SummaryMetric`, `ModelVersion`).
+- Alembic database migration environment and template (`backend/alembic.ini`, `backend/alembic/env.py`).
+- Pydantic v2 validation schemas in `backend/app/schemas/` for health telemetry, sentiment requests/responses, analysis jobs, and RFC error envelopes.
+- ML Sentiment inference service (`backend/app/services/sentiment_service.py`) loading ML checkpoints once at application startup with zero in-request training.
+- Job persistence service (`backend/app/services/job_service.py`) for YouTube video metadata tracking and job dispatch.
+- Health check endpoint `GET /api/health` monitoring PostgreSQL, Redis, and ML engine readiness.
+- Single-comment sentiment analysis endpoint `POST /api/sentiment` with strict character limits (5000 chars), non-empty validation, and 5-class distribution output.
+- Batch analysis ingestion endpoints `POST /api/analyze` (202 Accepted) and `GET /api/analyze/{job_id}`.
+- Standardized error exception handlers preventing internal tracebacks or secrets from leaking to clients.
+- 14 automated backend pytest tests passing across health, sentiment, and analysis job endpoints.
 
 ---
 
