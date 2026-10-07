@@ -41,3 +41,30 @@ class InferenceError(KollamoMLException):
         details: dict = None,
     ):
         super().__init__(message, details=details or {"status": "INFERENCE_ERROR"})
+
+
+class ModelLoadingError(ModelUnavailableError):
+    """Raised when model weights, architecture, or tokenizer fails to load."""
+    pass
+
+
+class ModelNotTrainedError(ModelNotReadyError):
+    """Raised when attempting production inference with an untrained base model or missing fine-tuned checkpoint."""
+
+    def __init__(self, message: str = "Trained Kollamo checkpoint not found. Status: MODEL_NOT_TRAINED", details: dict = None):
+        super().__init__(message, details=details or {"status": "MODEL_NOT_TRAINED"})
+
+
+class ConfigurationError(KollamoMLException):
+    """Raised when ML configuration or hyperparameters are invalid or missing."""
+    pass
+
+
+class PreprocessingError(KollamoMLException):
+    """Raised when text sanitization, normalization, or script analysis fails."""
+    pass
+
+
+class UnsupportedInputError(KollamoMLException):
+    """Raised when input text cannot be processed or represents unsupported content."""
+    pass

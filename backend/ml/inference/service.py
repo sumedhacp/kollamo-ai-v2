@@ -6,8 +6,8 @@ Consumed by Phase 3 FastAPI layer via SentimentService.
 
 from typing import Protocol, Literal, Optional, Any
 from pydantic import BaseModel, Field
-from backend.ml.schemas.prediction import SentimentPrediction, SentimentProbabilities
-from backend.ml.exceptions import ModelNotReadyError, ModelUnavailableError, InferenceError
+from ..schemas.prediction import SentimentPrediction, SentimentProbabilities
+from ..exceptions import ModelNotReadyError, ModelUnavailableError, InferenceError
 
 
 class ModelReadiness(BaseModel):

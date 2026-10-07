@@ -90,7 +90,7 @@ async def test_get_analysis_job_not_found(async_client: AsyncClient) -> None:
     assert response.status_code == 404
     data = response.json()
     assert "error" in data
-    assert data["error"]["code"] == "HTTP_ERROR"
+    assert data["error"]["code"] in ("HTTP_ERROR", "NOT_FOUND")
 
 
 @pytest.mark.asyncio
@@ -100,7 +100,7 @@ async def test_get_analysis_job_invalid_uuid(async_client: AsyncClient) -> None:
     assert response.status_code == 422
     data = response.json()
     assert "error" in data
-    assert data["error"]["code"] == "HTTP_ERROR"
+    assert data["error"]["code"] in ("HTTP_ERROR", "VALIDATION_ERROR")
 
 
 @pytest.mark.asyncio

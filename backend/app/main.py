@@ -213,6 +213,29 @@ async def ml_generic_exception_handler(
     )
 
 
+from app.services.youtube.errors import YouTubeError
+
+@app.exception_handler(YouTubeError)
+async def youtube_exception_handler(
+    request: Request, exc: YouTubeError
+) -> JSONResponse:
+    """Formats YouTube exceptions into the standard error envelope (Section 23 & 24)."""
+    logger.warning(
+        f"YouTubeError ({exc.code}) on {request.method} {request.url.path}: {exc.message}"
+    )
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        )
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_response.model_dump(),
+    )
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
@@ -279,9 +302,11 @@ async def root() -> dict:
 # Mount Health Endpoint Router (GET /health)
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.sentiment import router as v1_sentiment_router
+from app.api.routes.youtube import router as v1_youtube_router
 
 app.include_router(health_router)
 app.include_router(v1_sentiment_router, prefix="/api/v1")
+app.include_router(v1_youtube_router, prefix="/api/v1")
 
 # Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

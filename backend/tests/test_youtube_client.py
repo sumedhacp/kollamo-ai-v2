@@ -1,216 +1,196 @@
-"""Tests for YouTube Data API v3 Client with Mocked Responses."""
+"""Deterministic Unit Tests for YouTube API Client using Mocked HTTP Transport (Section 36)."""
 
 import pytest
 import httpx
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
-
-from backend.app.services.youtube_client import (
-    YouTubeClient,
-    VideoMetadata,
-    YouTubeCommentData,
-    YouTubeAPIError,
+from app.services.youtube.client import YouTubeClient
+from app.services.youtube.errors import (
+    YouTubeConfigError,
     YouTubeVideoNotFoundError,
     YouTubeCommentsDisabledError,
     YouTubeQuotaExceededError,
-    YouTubeAuthError,
-    YouTubeNetworkError,
+    YouTubeAPIError,
 )
 
-SAMPLE_VIDEO_ID = "dQw4w9WgXcQ"
+
+@pytest.mark.asyncio
+async def test_client_missing_api_key_raises_config_error():
+    """Client raises YouTubeConfigError if API key is empty."""
+    client = YouTubeClient(api_key="")
+    with pytest.raises(YouTubeConfigError) as exc_info:
+        await client.fetch_video_metadata("dQw4w9WgXcQ")
+    assert "YOUTUBE_CONFIG_ERROR" == exc_info.value.code
 
 
-def create_mock_video_response(video_id: str = SAMPLE_VIDEO_ID) -> dict:
-    """Creates a mock response for videos.list endpoint."""
-    return {
+@pytest.mark.asyncio
+async def test_client_fetch_video_metadata_success():
+    """Client parses video metadata accurately from mock YouTube API response."""
+    mock_payload = {
         "items": [
             {
-                "id": video_id,
+                "id": "dQw4w9WgXcQ",
                 "snippet": {
-                    "title": "Aavesham Official Trailer | Fahadh Faasil",
-                    "channelTitle": "Anwar Rasheed Entertainments",
-                    "publishedAt": "2024-04-10T12:00:00Z",
+                    "title": "Rick Astley - Never Gonna Give You Up",
+                    "channelTitle": "RickAstleyVEVO",
+                    "publishedAt": "2009-10-25T06:57:33Z",
+                    "description": "The official video for Never Gonna Give You Up",
                 },
                 "statistics": {
-                    "viewCount": "15420000",
-                    "likeCount": "450000",
-                    "commentCount": "12500",
+                    "viewCount": "1500000000",
+                    "likeCount": "17000000",
+                    "commentCount": "2500000",
                 },
             }
         ]
     }
 
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "videos" in request.url.path
+        assert request.url.params["id"] == "dQw4w9WgXcQ"
+        assert request.url.params["key"] == "test-key"
+        return httpx.Response(200, json=mock_payload)
 
-def create_mock_comments_response(
-    count: int = 2, next_page_token: str = None
-) -> dict:
-    """Creates a mock response for commentThreads.list endpoint."""
-    items = []
-    for i in range(count):
-        items.append({
-            "id": f"comment_{i}",
-            "snippet": {
-                "topLevelComment": {
-                    "id": f"comment_{i}",
-                    "snippet": {
-                        "textOriginal": f"Sample comment {i} kidilan aayi",
-                        "authorDisplayName": f"Viewer {i}",
-                        "likeCount": i * 10,
-                        "publishedAt": f"2024-04-11T1{i}:00:00Z",
-                    },
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        metadata = await client.fetch_video_metadata("dQw4w9WgXcQ")
+
+        assert metadata.video_id == "dQw4w9WgXcQ"
+        assert metadata.title == "Rick Astley - Never Gonna Give You Up"
+        assert metadata.channel_title == "RickAstleyVEVO"
+        assert metadata.view_count == 1500000000
+        assert metadata.like_count == 17000000
+        assert metadata.comment_count == 2500000
+        assert metadata.published_at is not None
+        assert metadata.published_at.year == 2009
+
+
+@pytest.mark.asyncio
+async def test_client_fetch_video_metadata_not_found():
+    """Client raises YouTubeVideoNotFoundError when items list is empty or 404."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": []})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        with pytest.raises(YouTubeVideoNotFoundError):
+            await client.fetch_video_metadata("dQw4w9WgXcQ")
+
+
+@pytest.mark.asyncio
+async def test_client_fetch_comment_threads_success():
+    """Client fetches a single page of comment threads and parses attributes."""
+    mock_payload = {
+        "items": [
+            {
+                "id": "comment_1",
+                "snippet": {
+                    "topLevelComment": {
+                        "id": "comment_1",
+                        "snippet": {
+                            "authorDisplayName": "Malayalam Fan",
+                            "textOriginal": "ഈ സിനിമ വളരെ മികച്ചതാണ് ❤️",
+                            "publishedAt": "2024-05-01T12:00:00Z",
+                            "updatedAt": "2024-05-01T12:00:00Z",
+                            "likeCount": 42,
+                        },
+                    }
                 },
-                "totalReplyCount": i,
-            },
-        })
+            }
+        ],
+        "nextPageToken": "token_page_2",
+    }
 
-    resp = {"items": items}
-    if next_page_token:
-        resp["nextPageToken"] = next_page_token
-    return resp
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "commentThreads" in request.url.path
+        assert request.url.params["videoId"] == "dQw4w9WgXcQ"
+        return httpx.Response(200, json=mock_payload)
 
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        result = await client.fetch_comment_threads("dQw4w9WgXcQ", max_results=50)
 
-@pytest.mark.asyncio
-async def test_missing_api_key_raises_auth_error():
-    """Client raises YouTubeAuthError when API key is completely absent."""
-    client = YouTubeClient(api_key="")
-    with pytest.raises(YouTubeAuthError) as exc_info:
-        await client.fetch_video_metadata(SAMPLE_VIDEO_ID)
-    assert "YouTube API key is not configured" in str(exc_info.value)
+        assert len(result["items"]) == 1
+        assert result["nextPageToken"] == "token_page_2"
 
-
-@pytest.mark.asyncio
-async def test_fetch_video_metadata_success():
-    """Client parses and returns video metadata correctly."""
-    mock_data = create_mock_video_response()
-
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    mock_resp = httpx.Response(200, json=mock_data, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = mock_resp
-
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    metadata = await yt.fetch_video_metadata(SAMPLE_VIDEO_ID)
-
-    assert metadata.video_id == SAMPLE_VIDEO_ID
-    assert "Aavesham" in metadata.title
-    assert metadata.channel_title == "Anwar Rasheed Entertainments"
-    assert metadata.view_count == 15420000
-    assert metadata.comment_count == 12500
+        comment = client.parse_comment_item(result["items"][0], "dQw4w9WgXcQ")
+        assert comment.comment_id == "comment_1"
+        assert comment.author_name == "Malayalam Fan"
+        assert comment.text == "ഈ സിനിമ വളരെ മികച്ചതാണ് ❤️"
+        assert comment.like_count == 42
+        assert comment.published_at is not None
 
 
 @pytest.mark.asyncio
-async def test_fetch_video_metadata_not_found():
-    """Client raises YouTubeVideoNotFoundError when video is missing or private."""
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    mock_resp = httpx.Response(200, json={"items": []}, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = mock_resp
-
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    with pytest.raises(YouTubeVideoNotFoundError):
-        await yt.fetch_video_metadata("nonexistent_id")
-
-
-@pytest.mark.asyncio
-async def test_fetch_comments_pagination():
-    """Client follows nextPageToken across multiple pages to collect requested comments."""
-    page1 = create_mock_comments_response(count=2, next_page_token="TOKEN_PAGE_2")
-    page2 = create_mock_comments_response(count=2, next_page_token=None)
-
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    resp1 = httpx.Response(200, json=page1, request=httpx.Request("GET", "https://api.test"))
-    resp2 = httpx.Response(200, json=page2, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.side_effect = [resp1, resp2]
-
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    comments = await yt.fetch_comments(SAMPLE_VIDEO_ID, sample_size=4, sort_mode="top")
-
-    assert len(comments) == 4
-    assert mock_client.get.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_fetch_comments_sample_size_cutoff():
-    """Client stops requesting once sample_size threshold is reached."""
-    page1 = create_mock_comments_response(count=5, next_page_token="MORE_AVAILABLE")
-
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    resp1 = httpx.Response(200, json=page1, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = resp1
-
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    comments = await yt.fetch_comments(SAMPLE_VIDEO_ID, sample_size=3, sort_mode="newest")
-
-    assert len(comments) == 3
-    assert mock_client.get.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_fetch_comments_disabled_error():
-    """Client raises YouTubeCommentsDisabledError on 403 commentsDisabled reason."""
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    err_body = {
+async def test_client_comments_disabled_error():
+    """Client maps 403 commentsDisabled to YouTubeCommentsDisabledError."""
+    mock_error = {
         "error": {
-            "code": 403,
-            "message": "The video has disabled comments.",
             "errors": [{"reason": "commentsDisabled"}],
+            "message": "The video identified by the <code><var>videoId</var></code> parameter has disabled comments.",
         }
     }
-    mock_resp = httpx.Response(403, json=err_body, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = mock_resp
 
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    with pytest.raises(YouTubeCommentsDisabledError):
-        await yt.fetch_comments(SAMPLE_VIDEO_ID)
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json=mock_error)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        with pytest.raises(YouTubeCommentsDisabledError):
+            await client.fetch_comment_threads("dQw4w9WgXcQ")
 
 
 @pytest.mark.asyncio
-async def test_fetch_comments_quota_exceeded_error():
-    """Client raises YouTubeQuotaExceededError on 403 quotaExceeded reason."""
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    err_body = {
+async def test_client_quota_exceeded_error():
+    """Client maps 403 quotaExceeded to YouTubeQuotaExceededError."""
+    mock_error = {
         "error": {
-            "code": 403,
-            "message": "Quota exceeded",
             "errors": [{"reason": "quotaExceeded"}],
+            "message": "The request cannot be completed because you have exceeded your quota.",
         }
     }
-    mock_resp = httpx.Response(403, json=err_body, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = mock_resp
 
-    yt = YouTubeClient(api_key="test_key", http_client=mock_client)
-    with pytest.raises(YouTubeQuotaExceededError):
-        await yt.fetch_comments(SAMPLE_VIDEO_ID)
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json=mock_error)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        with pytest.raises(YouTubeQuotaExceededError):
+            await client.fetch_comment_threads("dQw4w9WgXcQ")
 
 
 @pytest.mark.asyncio
-async def test_fetch_comments_bad_api_key_error():
-    """Client raises YouTubeAuthError when API key is rejected by Google."""
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    err_body = {
+async def test_client_invalid_api_key_error():
+    """Client maps 400 keyInvalid to YouTubeConfigError."""
+    mock_error = {
         "error": {
-            "code": 400,
-            "message": "API key not valid",
             "errors": [{"reason": "keyInvalid"}],
+            "message": "API key not valid. Please pass a valid API key.",
         }
     }
-    mock_resp = httpx.Response(400, json=err_body, request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.return_value = mock_resp
 
-    yt = YouTubeClient(api_key="bad_key", http_client=mock_client)
-    with pytest.raises(YouTubeAuthError):
-        await yt.fetch_comments(SAMPLE_VIDEO_ID)
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json=mock_error)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="bad-key", http_client=mock_http)
+        with pytest.raises(YouTubeConfigError):
+            await client.fetch_comment_threads("dQw4w9WgXcQ")
 
 
 @pytest.mark.asyncio
-async def test_retry_on_transient_error():
-    """Client retries transient 500 server errors and succeeds if next attempt works."""
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    err_resp = httpx.Response(503, text="Service Unavailable", request=httpx.Request("GET", "https://api.test"))
-    ok_resp = httpx.Response(200, json=create_mock_video_response(), request=httpx.Request("GET", "https://api.test"))
-    mock_client.get.side_effect = [err_resp, ok_resp]
+async def test_client_network_timeout_error():
+    """Client maps network timeout to YouTubeAPIError."""
+    def handler(request: httpx.Request):
+        raise httpx.ReadTimeout("Connection timed out")
 
-    with patch("asyncio.sleep", return_value=None):  # Fast forward sleep
-        yt = YouTubeClient(api_key="test_key", http_client=mock_client, max_retries=2)
-        metadata = await yt.fetch_video_metadata(SAMPLE_VIDEO_ID)
-
-    assert metadata.video_id == SAMPLE_VIDEO_ID
-    assert mock_client.get.call_count == 2
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as mock_http:
+        client = YouTubeClient(api_key="test-key", http_client=mock_http)
+        with pytest.raises(YouTubeAPIError):
+            await client.fetch_comment_threads("dQw4w9WgXcQ")

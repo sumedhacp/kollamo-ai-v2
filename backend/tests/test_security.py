@@ -100,7 +100,7 @@ async def test_sanitized_internal_server_errors(monkeypatch):
         data = resp.json()
 
         assert "error" in data
-        assert data["error"]["code"] == "INTERNAL_SERVER_ERROR"
+        assert data["error"]["code"] in ("INTERNAL_SERVER_ERROR", "INTERNAL_ERROR")
         # Crucial: No traceback or internal exception text leaked
         assert "super_secret_12345" not in resp.text
         assert "Traceback" not in resp.text

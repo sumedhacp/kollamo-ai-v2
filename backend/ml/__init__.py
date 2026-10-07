@@ -1,15 +1,19 @@
-"""Canonical Phase 2 ML Interface and Schemas Package for Kollamo.ai."""
+from pathlib import Path
 
-from backend.ml.schemas.prediction import (
+_root_ml = Path(__file__).resolve().parent.parent.parent / "ml"
+if _root_ml.exists() and str(_root_ml) not in __path__:
+    __path__.append(str(_root_ml))
+
+from .schemas.prediction import (
     SentimentPrediction,
     SentimentProbabilities,
 )
-from backend.ml.inference.service import (
+from .inference.service import (
     SentimentInferenceService,
     SentimentInferenceProtocol,
     ModelReadiness,
 )
-from backend.ml.exceptions import (
+from .exceptions import (
     KollamoMLException,
     ModelNotReadyError,
     ModelUnavailableError,

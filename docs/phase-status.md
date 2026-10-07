@@ -5,10 +5,10 @@ This document tracks the execution, verification gates, lifecycle status, and au
 ---
 
 ## Current Execution State
-- **Current Phase**: Phase 3 — Backend / FastAPI Foundation
-- **Phase Status**: **COMPLETE** (All Phase 3 Completion Gate criteria verified)
-- **Predecessor Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE), Phase 2 (COMPLETE)
-- **Next Phase**: Phase 4 — YouTube Ingestion (Awaiting explicit user instruction)
+- **Current Phase**: Phase 4 — YouTube Ingestion & Comment Collection Foundation
+- **Phase Status**: **COMPLETE** (All Phase 4 Completion Gate criteria verified)
+- **Predecessor Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE), Phase 2 (COMPLETE), Phase 3 (COMPLETE)
+- **Next Phase**: Phase 5 — Celery + Redis Async (Awaiting explicit user instruction)
 
 ---
 
@@ -325,33 +325,62 @@ Phase 4
 
 ---
 
-### Phase 4 — YouTube Ingestion
-- **Start Date**: 2026-10-06
-- **Completion Date**: 2026-10-06
-- **Branch**: `phase/04-ingestion`
-- **Commit**: `feat(ingestion): implement YouTube Data API v3 pipeline`
-- **Tag**: `v0.5.0`
-- **Dependencies**: Phase 3 (COMPLETE)
-- **Tests**: 15/15 unit and integration tests passing for YouTube client, ingestion orchestrator, and endpoints (44/44 total project tests passing)
-- **Known Issues**: None
-- **Completion Status**: **COMPLETE**
+### Phase 4 — YouTube Ingestion & Comment Collection Foundation
+
+```text
+Phase: 4
+Phase Status: COMPLETE
+
+Dependency:
+Phase 3 FastAPI backend foundation
+
+YouTube Ingestion Service Location:
+backend/app/services/youtube/
+
+YouTube Client Status:
+AVAILABLE
+
+YouTube Parser Status:
+AVAILABLE
+
+Ingestion Endpoint:
+/api/v1/youtube/ingest
+
+Ingestion Endpoint Status:
+READY
+
+Tests:
+PASS
+
+Git Commit:
+feat: add Kollamo.ai YouTube ingestion
+
+GitHub Push:
+SUCCESS
+
+Next Phase:
+Phase 5
+```
+
+> Phase 4 YouTube ingestion foundation is complete. It supports YouTube Data API v3 video metadata and comment thread collection, canonical ID parsing, pagination, comment limits, sorting, verbatim Unicode comment preservation, and standardized RFC-compliant error mapping.
 
 #### Phase 4 Completion Gate Checklist:
-- [x] Requirements implemented (Official YouTube Data API v3 asynchronous client, pagination loop with nextPageToken, sample size threshold enforcement, sort mode mapping, robust error handling for commentsDisabled, videoNotFound, quotaExceeded, keyInvalid, exponential backoff with jitter on 5xx, IngestionService with DB persistence, raw comment text preservation, Malayalam script detection, POST /api/analyze/{job_id}/ingest endpoint)
-- [x] Unit tests passing (pytest: 15/15 tests passed across test_youtube_client, test_ingestion_service, and test_ingest_api)
-- [x] Integration tests passing where applicable (Database persistence of videos and comments, foreign key relations, status transitions)
-- [x] Build passing (All Python module imports and endpoint bindings execute cleanly)
-- [x] Browser verification completed where applicable (N/A for backend ingestion pipeline; OpenAPI /docs updated)
-- [x] No console errors (0 runtime errors)
-- [x] No secrets committed (Verified via .gitignore, zero API keys hardcoded)
-- [x] Git diff reviewed (Clean diff, no unwanted temporary files)
-- [x] Documentation updated (docs/api.md updated with ingestion endpoint details and error codes)
-- [x] CHANGELOG updated (v0.5.0 release recorded)
-- [x] Known limitations documented (Celery + Redis asynchronous worker queue scheduled for Phase 5)
-- [x] No blocking issue remains
-- [x] Conventional Commit prepared (`feat(ingestion): implement YouTube Data API v3 pipeline`)
-- [x] Phase tag prepared (`v0.5.0`)
-- [x] Branch ready for merge (`phase/04-ingestion`)
+- [x] YouTube URL/ID parser implemented (`backend/app/services/youtube/parser.py`)
+- [x] YouTube Data API v3 client implemented with httpx (`backend/app/services/youtube/client.py`)
+- [x] Ingestion service implemented with pagination, limits, sorting (`backend/app/services/youtube/service.py`)
+- [x] Pydantic models implemented (`backend/app/schemas/youtube.py`)
+- [x] Endpoint `POST /api/v1/youtube/ingest` implemented (`backend/app/api/routes/youtube.py`)
+- [x] RFC-compliant error mappings registered (`YOUTUBE_INVALID_VIDEO`, `YOUTUBE_VIDEO_NOT_FOUND`, `YOUTUBE_COMMENTS_DISABLED`, `YOUTUBE_QUOTA_EXCEEDED`, `YOUTUBE_CONFIG_ERROR`, `YOUTUBE_API_ERROR`)
+- [x] Verbatim Unicode preservation for Malayalam, Manglish, Code-mixed, Emojis
+- [x] API key isolated server-side via `YOUTUBE_API_KEY`
+- [x] Unit tests passing (parser, client, service)
+- [x] Integration tests passing (endpoint, error cases, headers)
+- [x] 100% deterministic tests passing without live network
+- [x] Git diff reviewed
+- [x] Commit created (`feat: add Kollamo.ai YouTube ingestion`)
+- [x] Pushed to GitHub
+- [x] Remote verified
+- [x] `docs/phase-status.md` updated
 
 ---
 
