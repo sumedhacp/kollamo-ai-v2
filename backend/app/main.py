@@ -2,18 +2,26 @@
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, APIRouter, Request, status, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.api.router import api_router
+from backend.app.api.sentiment import analyze_sentiment
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.db.session import engine
 from backend.app.schemas.error import ErrorDetail, ErrorResponse
+from backend.app.schemas.sentiment import SentimentResponse
 from backend.app.services.sentiment_service import SentimentService
+from ml.exceptions import (
+    ModelNotTrainedError,
+    ModelLoadingError,
+    InferenceError,
+    KollamoMLException,
+)
 
 
 @asynccontextmanager
@@ -54,23 +62,22 @@ from backend.app.core.rate_limiter import RateLimitMiddleware, InMemoryRateLimit
 global_rate_limiter = InMemoryRateLimiter(requests_per_minute=120, window_seconds=60)
 app.add_middleware(RateLimitMiddleware, limiter=global_rate_limiter)
 
-# Configure CORS middleware
+# Configure CORS middleware safely (configurable origins, no wildcard in production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
-# Standardized Error Exception Handlers
+# Standardized RFC-Compliant Exception Handlers
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Formats validation errors into the standard RFC-compliant error envelope."""
-    # Convert error list to JSON serializable objects
     formatted_errors = []
     for err in exc.errors():
         formatted_errors.append({
@@ -92,14 +99,98 @@ async def validation_exception_handler(
     )
 
 
+@app.exception_handler(ModelNotTrainedError)
+async def model_not_trained_exception_handler(
+    request: Request, exc: ModelNotTrainedError
+) -> JSONResponse:
+    """Handles requests when a fine-tuned model checkpoint is missing without returning fake sentiment."""
+    logger.warning(f"ModelNotTrainedError on {request.method} {request.url.path}: {exc}")
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="MODEL_NOT_TRAINED",
+            message="Trained sentiment model checkpoint is not available for inference.",
+            details=exc.details,
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=error_response.model_dump(),
+    )
+
+
+@app.exception_handler(ModelLoadingError)
+async def model_loading_exception_handler(
+    request: Request, exc: ModelLoadingError
+) -> JSONResponse:
+    """Handles model initialization and loading errors."""
+    logger.error(f"ModelLoadingError on {request.method} {request.url.path}: {exc}")
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="MODEL_UNAVAILABLE",
+            message="Sentiment model is currently unavailable or failed to initialize.",
+            details=getattr(exc, "details", None),
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=error_response.model_dump(),
+    )
+
+
+@app.exception_handler(InferenceError)
+async def inference_exception_handler(
+    request: Request, exc: InferenceError
+) -> JSONResponse:
+    """Handles ML inference computation failures securely without leaking internals."""
+    logger.error(f"InferenceError on {request.method} {request.url.path}: {exc}")
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="INFERENCE_ERROR",
+            message="Sentiment inference computation failed.",
+            details=None,
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=error_response.model_dump(),
+    )
+
+
+@app.exception_handler(KollamoMLException)
+async def ml_generic_exception_handler(
+    request: Request, exc: KollamoMLException
+) -> JSONResponse:
+    """Handles general ML pipeline exceptions."""
+    logger.error(f"KollamoMLException on {request.method} {request.url.path}: {exc}")
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="ML_ERROR",
+            message="A machine learning pipeline error occurred.",
+            details=None,
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=error_response.model_dump(),
+    )
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
     """Formats Starlette/FastAPI HTTP exceptions into standard error envelope."""
+    error_code = "HTTP_ERROR"
+    if exc.status_code == 404:
+        error_code = "NOT_FOUND"
+    elif exc.status_code == 405:
+        error_code = "METHOD_NOT_ALLOWED"
+    elif exc.status_code == 429:
+        error_code = "RATE_LIMIT_EXCEEDED"
+
     error_response = ErrorResponse(
         error=ErrorDetail(
-            code="HTTP_ERROR",
+            code=error_code,
             message=str(exc.detail),
             details=None,
         )
@@ -129,7 +220,7 @@ async def generic_exception_handler(
     )
 
 
-# Root Endpoint
+# Root Metadata Endpoint
 @app.get("/", tags=["Root"])
 async def root() -> dict:
     """Root metadata endpoint."""
@@ -141,5 +232,41 @@ async def root() -> dict:
     }
 
 
-# Mount API Router
+# Minimal Health Endpoint (Independent of later-phase infrastructure)
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Minimal API health check",
+    description="Returns a lightweight, machine-readable status indicating the API process is alive.",
+)
+async def root_health() -> dict:
+    """Minimal health check endpoint that does not perform expensive ML inference or require DB/Redis."""
+    return {
+        "status": "healthy",
+        "project": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "environment": settings.ENVIRONMENT,
+    }
+
+
+# Mount Primary API Router under /api
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# Mount Versioned /api/v1 Sentiment Endpoint
+v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
+v1_router.add_api_route(
+    "/sentiment",
+    analyze_sentiment,
+    methods=["POST"],
+    response_model=SentimentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Versioned single comment sentiment classification",
+    description="Accepts a Malayalam, Manglish, English, or code-mixed comment and returns a 5-class sentiment distribution.",
+    responses={
+        422: {"model": ErrorResponse, "description": "Validation error (empty, oversized, or malformed)"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+        503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
+    },
+    operation_id="analyze_sentiment_v1_post",
+)
+app.include_router(v1_router)

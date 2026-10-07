@@ -1,6 +1,6 @@
 """Sentiment Analysis Request and Response Schemas."""
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -21,7 +21,11 @@ class SentimentRequest(BaseModel):
     @field_validator("text")
     @classmethod
     def validate_non_empty(cls, v: str) -> str:
-        if not v or not v.strip():
+        if v is None:
+            raise ValueError("Comment text cannot be null.")
+        if not isinstance(v, str):
+            raise ValueError("Comment text must be a string.")
+        if not v.strip():
             raise ValueError("Comment text cannot be empty or contain only whitespace.")
         return v
 
@@ -47,9 +51,18 @@ class SentimentResponse(BaseModel):
     class_probabilities: ClassProbabilities = Field(
         ..., description="Full probability distribution over all 5 sentiment classes"
     )
+    probabilities: Optional[Dict[str, float]] = Field(
+        default=None, description="Normalized probability distribution over the 5 sentiment classes"
+    )
     translation_status: str = Field(
         ..., description="Translation execution state (original, translated, not_needed, untranslated)"
     )
     translated_text: Optional[str] = Field(
         None, description="English translation if requested and applicable"
+    )
+    model_metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="ML Model architecture, device, and checkpoint metadata"
+    )
+    processing_metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="Inference runtime, token count, and preprocessing metadata"
     )

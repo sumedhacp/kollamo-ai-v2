@@ -9,7 +9,20 @@ Base URL: `http://localhost:8000/api`
 
 ## 1. System Health
 
-### `GET /api/health`
+### `GET /health`
+Minimal machine-readable liveness probe indicating the API process is alive. Independent of databases, Redis, or ML inference.
+
+#### Response: `200 OK`
+```json
+{
+  "status": "healthy",
+  "project": "Kollamo.ai",
+  "version": "0.4.0",
+  "environment": "development"
+}
+```
+
+### `GET /api/health` & `GET /api/v1/health`
 Checks server, database, Redis broker, and ML inference readiness.
 
 #### Response: `200 OK`
@@ -30,7 +43,7 @@ Checks server, database, Redis broker, and ML inference readiness.
 
 ## 2. Single-Comment Sentiment Analysis
 
-### `POST /api/sentiment`
+### `POST /api/v1/sentiment` & `POST /api/sentiment`
 Synchronously classifies the sentiment of a single comment.
 
 #### Request Body
@@ -56,13 +69,58 @@ Synchronously classifies the sentiment of a single comment.
     "mixed": 0.018,
     "unsupported": 0.004
   },
+  "probabilities": {
+    "positive": 0.942,
+    "negative": 0.015,
+    "neutral": 0.021,
+    "mixed": 0.018,
+    "unsupported": 0.004
+  },
   "translation_status": "translated",
-  "translated_text": "This movie was awesome, must watch!"
+  "translated_text": "This movie was awesome, must watch!",
+  "model_metadata": {
+    "architecture": "BaselineClassifier",
+    "device": "cpu"
+  },
+  "processing_metadata": {
+    "raw_length": 39,
+    "cleaned_length": 39,
+    "inference_time_ms": 1.15
+  }
 }
 ```
 
 #### Error Response: `422 Unprocessable Entity`
-Returned if `text` is empty or exceeds character limits.
+Returned if `text` is empty, whitespace-only, missing, or exceeds character limits (1-5000 chars).
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed. Please check the payload parameters.",
+    "details": [
+      {
+        "loc": ["body", "text"],
+        "msg": "Comment text cannot be empty or contain only whitespace.",
+        "type": "value_error"
+      }
+    ]
+  }
+}
+```
+
+#### Error Response: `503 Service Unavailable` (`MODEL_NOT_TRAINED`)
+Returned if fine-tuned model checkpoint is missing. Guarantees zero fake sentiment is generated:
+```json
+{
+  "error": {
+    "code": "MODEL_NOT_TRAINED",
+    "message": "Trained sentiment model checkpoint is not available for inference.",
+    "details": {
+      "status": "MODEL_NOT_TRAINED"
+    }
+  }
+}
+```
 
 ---
 

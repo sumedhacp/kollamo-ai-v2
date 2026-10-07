@@ -1,8 +1,7 @@
-"""Sentiment Analysis Service integrating ML Inference Predictor."""
+"""Sentiment Analysis Service integrating ML Inference Predictor via Phase 2 ModelLoader."""
 
-import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.schemas.sentiment import (
@@ -10,8 +9,14 @@ from backend.app.schemas.sentiment import (
     SentimentRequest,
     SentimentResponse,
 )
+from ml.models.loader import ModelLoader
 from ml.inference.predictor import SentimentPredictor
-from ml.models.baseline_model import BaselineClassifier
+from ml.exceptions import (
+    ModelNotTrainedError,
+    ModelLoadingError,
+    InferenceError,
+    KollamoMLException,
+)
 
 
 class SentimentService:
@@ -21,7 +26,9 @@ class SentimentService:
 
     def __init__(self) -> None:
         self.predictor: Optional[SentimentPredictor] = None
+        self._loader: Optional[ModelLoader] = None
         self._is_ready: bool = False
+        self._load_error: Optional[Exception] = None
         self._load_model()
 
     @classmethod
@@ -31,48 +38,63 @@ class SentimentService:
             cls._instance = cls()
         return cls._instance
 
+    @classmethod
+    def set_instance(cls, instance: Optional["SentimentService"]) -> None:
+        """Sets or resets the singleton instance (primarily for testing and fixtures)."""
+        cls._instance = instance
+
     def _load_model(self) -> None:
-        """Loads trained weights once at startup."""
-        weights_path = Path(settings.FINETUNED_WEIGHTS_PATH)
-        logger.info(f"Loading sentiment model weights from: {weights_path}")
+        """Loads and caches the SentimentPredictor using Phase 2 ModelLoader."""
+        weights_path = Path(settings.FINETUNED_WEIGHTS_PATH) if settings.FINETUNED_WEIGHTS_PATH else None
+        logger.info(f"Initializing SentimentService with weights path: {weights_path}")
 
         try:
-            if weights_path.exists() and weights_path.suffix == ".joblib":
-                model = BaselineClassifier.load(str(weights_path))
-                self.predictor = SentimentPredictor(model=model, device=settings.ML_DEVICE)
-                self._is_ready = True
-                logger.info("Successfully loaded TF-IDF baseline sentiment classifier.")
-            elif weights_path.exists():
-                # Potential PyTorch / Hugging Face model directory
-                from transformers import AutoTokenizer
-                from ml.models.muril_classifier import MuRILSentimentClassifier
-                import torch
-
-                tokenizer = AutoTokenizer.from_pretrained(settings.MURIL_MODEL_PATH)
-                model = MuRILSentimentClassifier.from_pretrained(str(weights_path))
-                model.to(settings.ML_DEVICE)
-                model.eval()
-                self.predictor = SentimentPredictor(
-                    model=model, tokenizer=tokenizer, device=settings.ML_DEVICE
-                )
-                self._is_ready = True
-                logger.info("Successfully loaded fine-tuned MuRIL neural sentiment classifier.")
-            else:
-                # If weights file not found, fall back to fitting baseline on corpus
-                logger.warning(
-                    f"Saved model weights not found at {weights_path}. Initializing fallback baseline."
-                )
-                from ml.data.dataset_loader import load_sentiment_dataset
-
-                train_texts, train_labels, _, _ = load_sentiment_dataset()
-                model = BaselineClassifier()
-                model.fit(train_texts, train_labels)
-                self.predictor = SentimentPredictor(model=model, device=settings.ML_DEVICE)
-                self._is_ready = True
-                logger.info("Fitted in-memory fallback baseline model.")
-        except Exception as exc:
-            logger.error(f"Failed to load sentiment model: {exc}")
+            self._loader = ModelLoader(
+                model_name=settings.MURIL_MODEL_PATH,
+                weights_path=weights_path,
+                device=settings.ML_DEVICE,
+                num_classes=5,
+                model_type="auto",
+                allow_untrained_fallback=False,
+            )
+            self.predictor = self._loader.get_predictor()
+            self._is_ready = True
+            self._load_error = None
+            logger.info("Successfully loaded sentiment inference predictor via ModelLoader.")
+        except ModelNotTrainedError as exc:
+            logger.warning(f"Fine-tuned sentiment model not found/trained: {exc}")
+            self.predictor = None
             self._is_ready = False
+            self._load_error = exc
+        except Exception as exc:
+            logger.error(f"Failed to load sentiment model via ModelLoader: {exc}")
+            self.predictor = None
+            self._is_ready = False
+            self._load_error = exc
+
+    def reload(
+        self,
+        weights_path: Optional[str] = None,
+        allow_untrained_fallback: bool = False,
+    ) -> None:
+        """Reloads the underlying model with custom configuration (used for test isolation)."""
+        target_path = weights_path if weights_path is not None else settings.FINETUNED_WEIGHTS_PATH
+        try:
+            self._loader = ModelLoader(
+                model_name=settings.MURIL_MODEL_PATH,
+                weights_path=Path(target_path) if target_path else None,
+                device=settings.ML_DEVICE,
+                num_classes=5,
+                model_type="auto",
+                allow_untrained_fallback=allow_untrained_fallback,
+            )
+            self.predictor = self._loader.get_predictor()
+            self._is_ready = True
+            self._load_error = None
+        except Exception as exc:
+            self.predictor = None
+            self._is_ready = False
+            self._load_error = exc
 
     def is_ready(self) -> bool:
         """Returns True if the ML inference engine is initialized and ready."""
@@ -81,11 +103,21 @@ class SentimentService:
     def analyze_comment(self, request: SentimentRequest) -> SentimentResponse:
         """Performs non-heuristic sentiment classification on a single comment."""
         if not self.is_ready():
-            raise RuntimeError("Sentiment model engine is not loaded or ready.")
+            if isinstance(self._load_error, ModelNotTrainedError):
+                raise self._load_error
+            elif isinstance(self._load_error, ModelLoadingError):
+                raise self._load_error
+            elif self._load_error:
+                raise ModelLoadingError(f"Model engine failed to load: {self._load_error}")
+            else:
+                raise ModelNotTrainedError(
+                    "Trained Kollamo checkpoint not found. Status: MODEL_NOT_TRAINED",
+                    details={"status": "MODEL_NOT_TRAINED"},
+                )
 
         prediction = self.predictor.predict_single(request.text)
 
-        # Handle translation using translation service abstraction
+        # Handle translation using translation service abstraction safely if requested
         translated_text: Optional[str] = None
         translation_status = "not_requested"
 
@@ -106,15 +138,21 @@ class SentimentService:
                 logger.debug(f"Translation service call error: {e}")
                 translation_status = "untranslated"
 
+        probs_dict = prediction["class_probabilities"]
+        class_probs = ClassProbabilities(**probs_dict)
+
         return SentimentResponse(
             original_text=prediction["original_text"],
             detected_language=prediction["detected_language"],
             detected_script=prediction["detected_script"],
             sentiment=prediction["sentiment"],
             confidence=prediction["confidence"],
-            class_probabilities=ClassProbabilities(**prediction["class_probabilities"]),
+            class_probabilities=class_probs,
+            probabilities=probs_dict,
             translation_status=translation_status,
             translated_text=translated_text,
+            model_metadata=prediction.get("model_metadata"),
+            processing_metadata=prediction.get("processing_metadata"),
         )
 
 

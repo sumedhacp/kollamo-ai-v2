@@ -20,6 +20,7 @@ router = APIRouter(tags=["Sentiment"])
     responses={
         422: {"model": ErrorResponse, "description": "Validation error (empty, oversized, or malformed)"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
+        503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
     },
 )
 async def analyze_sentiment(
