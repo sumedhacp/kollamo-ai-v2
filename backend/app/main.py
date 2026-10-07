@@ -12,20 +12,30 @@ from backend.app.api.router import api_router
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.db.session import engine
-from backend.app.schemas.common import ErrorDetail, ErrorResponse, HealthResponse
+from backend.app.schemas.common import (
+    ErrorDetail,
+    ErrorResponse,
+    HealthResponse,
+    ValidationDetails,
+    ValidationFieldError,
+)
 from backend.app.schemas.sentiment import (
     SentimentAnalyzeRequest,
     SentimentAnalyzeResponse,
 )
-from backend.app.services.sentiment_service import (
+from backend.app.services.sentiment import (
     SentimentService,
     get_sentiment_service,
+)
+from backend.ml.exceptions import (
+    ModelNotReadyError,
+    ModelUnavailableError,
+    InferenceError,
+    KollamoMLException,
 )
 from ml.exceptions import (
     ModelNotTrainedError,
     ModelLoadingError,
-    InferenceError,
-    KollamoMLException,
 )
 
 
@@ -37,10 +47,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Warm-up ML Sentiment Service on startup
     try:
         service = SentimentService.get_instance()
-        if service.is_ready():
+        readiness = service.get_model_readiness()
+        if readiness.status == "MODEL_READY":
             logger.info("ML Sentiment Service warmed up and ready for inference.")
         else:
-            logger.warning("ML Sentiment Service initialized with degraded readiness.")
+            logger.warning(f"ML Sentiment Service initialized with status: {readiness.status}")
     except Exception as exc:
         logger.error(f"Error during ML service warmup: {exc}")
 
@@ -77,25 +88,45 @@ app.add_middleware(
 )
 
 
-# Standardized RFC-Compliant Exception Handlers
+# Standardized RFC-Compliant Exception Handlers (Sections 17-24)
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    """Formats validation errors into the standard RFC-compliant error envelope."""
-    formatted_errors = []
+    """Formats validation errors into the exact Section 21/22 error envelope."""
+    fields: list[ValidationFieldError] = []
     for err in exc.errors():
-        formatted_errors.append({
-            "loc": [str(loc_item) for loc_item in err.get("loc", [])],
-            "msg": err.get("msg", ""),
-            "type": err.get("type", ""),
-        })
+        loc = err.get("loc", [])
+        field_name = str(loc[-1]) if loc else "text"
+        err_type = err.get("type", "")
+        msg = err.get("msg", "")
+
+        if err_type == "missing":
+            code = "REQUIRED"
+            message = "Text is required." if field_name == "text" else f"{field_name.capitalize()} is required."
+        elif "empty" in msg.lower() or "whitespace" in msg.lower() or "EMPTY_TEXT" in msg:
+            code = "EMPTY_TEXT"
+            message = "Text cannot be empty or contain only whitespace."
+        elif err_type in ("string_type", "type_error") or "string" in msg.lower():
+            code = "INVALID_TYPE"
+            message = "Text must be a string."
+        else:
+            code = "INVALID_TYPE"
+            message = msg
+
+        fields.append(
+            ValidationFieldError(
+                field=field_name,
+                code=code,
+                message=message,
+            )
+        )
 
     error_response = ErrorResponse(
         error=ErrorDetail(
             code="VALIDATION_ERROR",
-            message="Request validation failed. Please check the payload parameters.",
-            details=formatted_errors,
+            message="Request validation failed.",
+            details=ValidationDetails(fields=fields),
         )
     )
     return JSONResponse(
@@ -104,17 +135,18 @@ async def validation_exception_handler(
     )
 
 
+@app.exception_handler(ModelNotReadyError)
 @app.exception_handler(ModelNotTrainedError)
-async def model_not_trained_exception_handler(
-    request: Request, exc: ModelNotTrainedError
+async def model_not_ready_exception_handler(
+    request: Request, exc: Exception
 ) -> JSONResponse:
-    """Handles requests when a fine-tuned model checkpoint is missing without returning fake sentiment."""
-    logger.warning(f"ModelNotTrainedError on {request.method} {request.url.path}: {exc}")
+    """Handles requests when fine-tuned checkpoint is missing (HTTP 503 MODEL_NOT_READY)."""
+    logger.warning(f"ModelNotReady on {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
-            code="MODEL_NOT_TRAINED",
-            message="The Kollamo sentiment model is not available for inference.",
-            details=getattr(exc, "details", None),
+            code="MODEL_NOT_READY",
+            message="The Kollamo sentiment model is not ready for inference.",
+            details=None,
         )
     )
     return JSONResponse(
@@ -123,17 +155,18 @@ async def model_not_trained_exception_handler(
     )
 
 
+@app.exception_handler(ModelUnavailableError)
 @app.exception_handler(ModelLoadingError)
-async def model_loading_exception_handler(
-    request: Request, exc: ModelLoadingError
+async def model_unavailable_exception_handler(
+    request: Request, exc: Exception
 ) -> JSONResponse:
-    """Handles model initialization and loading errors."""
-    logger.error(f"ModelLoadingError on {request.method} {request.url.path}: {exc}")
+    """Handles model unavailable errors (HTTP 503 MODEL_UNAVAILABLE)."""
+    logger.error(f"ModelUnavailable on {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
             code="MODEL_UNAVAILABLE",
-            message="The configured model cannot currently be loaded or accessed.",
-            details=getattr(exc, "details", None),
+            message="The Kollamo sentiment model is currently unavailable.",
+            details=None,
         )
     )
     return JSONResponse(
@@ -146,12 +179,12 @@ async def model_loading_exception_handler(
 async def inference_exception_handler(
     request: Request, exc: InferenceError
 ) -> JSONResponse:
-    """Handles ML inference computation failures securely without leaking internals."""
+    """Handles ML inference computation failures securely without leaking internals (HTTP 500 INFERENCE_ERROR)."""
     logger.error(f"InferenceError on {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
             code="INFERENCE_ERROR",
-            message="Sentiment inference computation failed.",
+            message="Sentiment inference failed.",
             details=None,
         )
     )
@@ -165,7 +198,7 @@ async def inference_exception_handler(
 async def ml_generic_exception_handler(
     request: Request, exc: KollamoMLException
 ) -> JSONResponse:
-    """Handles general ML pipeline exceptions."""
+    """Handles general ML pipeline exceptions (HTTP 500 INTERNAL_ERROR)."""
     logger.error(f"KollamoMLException on {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
@@ -243,22 +276,11 @@ async def root() -> dict:
     }
 
 
-# Health Endpoint (Section 21: GET /health returns {"status": "ok"})
-@app.get(
-    "/health",
-    response_model=HealthResponse,
-    tags=["Health"],
-    summary="Minimal API health check",
-    description="Returns a lightweight, machine-readable status indicating the API process is alive.",
-)
-async def root_health() -> HealthResponse:
-    """Minimal health check endpoint indicating that the API process is alive."""
-    return HealthResponse(status="ok")
-
-
-# Mount Versioned /api/v1 Sentiment Endpoint (Section 8: POST /api/v1/sentiment)
+# Mount Health Endpoint Router (GET /health)
+from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.sentiment import router as v1_sentiment_router
 
+app.include_router(health_router)
 app.include_router(v1_sentiment_router, prefix="/api/v1")
 
 # Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)

@@ -1,7 +1,21 @@
 """Common and standardized schemas for Kollamo.ai Backend."""
 
-from typing import Any, Optional, Literal
+from typing import Any, Optional, Literal, List, Union
 from pydantic import BaseModel, Field
+
+
+class ValidationFieldError(BaseModel):
+    """Specific field validation error."""
+
+    field: str = Field(..., description="Field name that failed validation")
+    code: str = Field(..., description="Validation error code (REQUIRED, INVALID_TYPE, EMPTY_TEXT)")
+    message: str = Field(..., description="Human-readable field error message")
+
+
+class ValidationDetails(BaseModel):
+    """Validation details envelope."""
+
+    fields: List[ValidationFieldError] = Field(..., description="List of field-level validation errors")
 
 
 class ErrorDetail(BaseModel):
@@ -9,7 +23,9 @@ class ErrorDetail(BaseModel):
 
     code: str = Field(..., description="Machine-readable error code")
     message: str = Field(..., description="Human-readable error description")
-    details: Optional[Any] = Field(None, description="Optional diagnostic details or validation issues")
+    details: Optional[Union[ValidationDetails, Any]] = Field(
+        None, description="Optional diagnostic details or validation issues"
+    )
 
 
 class ErrorResponse(BaseModel):

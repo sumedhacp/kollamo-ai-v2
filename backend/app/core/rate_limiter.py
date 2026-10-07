@@ -70,4 +70,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 headers={"Retry-After": str(self.limiter.window_seconds)},
             )
 
-        return await call_next(request)
+        try:
+            return await call_next(request)
+        except Exception as exc:
+            logger.exception(f"Unhandled server error processing {request.method} {request.url.path}: {exc}")
+            error_response = ErrorResponse(
+                error=ErrorDetail(
+                    code="INTERNAL_ERROR",
+                    message="An unexpected server error occurred. Please try again later.",
+                    details=None,
+                )
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content=error_response.model_dump(),
+            )
