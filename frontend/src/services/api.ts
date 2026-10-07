@@ -7,6 +7,8 @@ import {
   HealthStatus,
   AnalyzeJobCreateResponse,
   ApiErrorEnvelope,
+  TranslationResponse,
+  AnalysisReportResponse,
 } from '@/types';
 
 /**
@@ -168,5 +170,57 @@ export const api = {
     const qs = searchParams.toString();
     const endpoint = `/analyze/${encodeURIComponent(jobId)}/comments${qs ? `?${qs}` : ''}`;
     return request<CommentItem[]>(endpoint, { method: 'GET' });
+  },
+
+  /**
+   * Translate Malayalam or Manglish text: POST /api/translate
+   */
+  async translateText(
+    text: string,
+    sourceLanguage: string = 'auto',
+    targetLanguage: string = 'en'
+  ): Promise<TranslationResponse> {
+    return request<TranslationResponse>('/translate', {
+      method: 'POST',
+      body: JSON.stringify({
+        text,
+        source_language: sourceLanguage,
+        target_language: targetLanguage,
+      }),
+    });
+  },
+
+  /**
+   * Retrieve structured report data for export: GET /api/analyze/{job_id}/report
+   */
+  async getJobReport(jobId: string): Promise<AnalysisReportResponse> {
+    return request<AnalysisReportResponse>(`/analyze/${encodeURIComponent(jobId)}/report`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Download server-compiled PDF document: GET /api/analyze/{job_id}/report/pdf
+   */
+  async downloadJobPdf(jobId: string): Promise<Blob> {
+    const url = `${BASE_URL}/analyze/${encodeURIComponent(jobId)}/report/pdf`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new ApiError('Failed to download PDF report', response.status, 'DOWNLOAD_FAILED');
+    }
+    return response.blob();
+  },
+
+  /**
+   * Trigger comment translations for job: POST /api/analyze/{job_id}/translate-comments
+   */
+  async translateJobComments(
+    jobId: string,
+    limit: number = 25
+  ): Promise<{ job_id: string; translated_count: number; remaining_untranslated: number }> {
+    return request<{ job_id: string; translated_count: number; remaining_untranslated: number }>(
+      `/analyze/${encodeURIComponent(jobId)}/translate-comments?limit=${limit}`,
+      { method: 'POST' }
+    );
   },
 };

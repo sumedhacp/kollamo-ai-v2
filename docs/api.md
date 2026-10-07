@@ -225,3 +225,46 @@ The React/TypeScript frontend interacts with the backend through a strongly-type
 - **Dev Server Proxy**: Vite proxies `/api` directly to `http://localhost:8000/api` during local development, eliminating browser CORS setup friction.
 - **Error Handling**: Non-2xx responses are mapped to `ApiError` instances, retaining machine-readable error codes (`VALIDATION_ERROR`, `NETWORK_ERROR`, etc.) and validation error details for clear user feedback.
 - **Real-Time Telemetry Hook (`useJobPolling`)**: Subscribes to job lifecycle events at `1500ms` intervals with deterministic completion callbacks, automatic teardown, and fallback retry triggers.
+
+---
+
+## 7. Translation & PDF Reporting APIs
+
+### `POST /api/translate`
+Translates Malayalam script, Romanized Malayalam (Manglish), or code-mixed text to English using the multi-tier translation engine.
+
+#### Request Body
+```json
+{
+  "text": "padam thooki! fafa mass item",
+  "source_language": "auto",
+  "target_language": "en"
+}
+```
+
+#### Response: `200 OK`
+```json
+{
+  "original_text": "padam thooki! fafa mass item",
+  "translated_text": "The movie was a blockbuster! FaFa mass item",
+  "source_language": "manglish",
+  "target_language": "en",
+  "confidence": 0.98,
+  "detected_script": "latin",
+  "intermediate_malayalam": null,
+  "method": "colloquial_lexicon",
+  "status": "translated"
+}
+```
+
+### `GET /api/analyze/{job_id}/report`
+Compiles full structured academic report data for completed analysis jobs.
+
+#### Response: `200 OK`
+Returns `AnalysisReportResponse` containing video metadata, 5-class sentiment distribution, Net Sentiment Approval Index, linguistic script breakdown, top positive/negative comments, technical methodology, and academic disclaimer.
+
+### `GET /api/analyze/{job_id}/report/pdf`
+Compiles and streams a downloadable multi-page branded PDF report document (`application/pdf`) via ReportLab.
+
+### `POST /api/analyze/{job_id}/translate-comments`
+Executes translation for untranslated comments associated with an analysis job.

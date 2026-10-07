@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.0] - 2026-10-07
+
+### Added
+- Multi-tier translation service abstraction (`backend/app/services/translation_service.py`) supporting Malayalam script, Romanized Malayalam (Manglish), English, and Malayalam-English code-mixed comments.
+- Direct colloquial Manglish lexicon for idiomatic movie review expressions (e.g. *padam thooki*, *pwoli*, *kidilan padam*, *valare bore*, *paisa nashtam*) ensuring guaranteed accuracy and sub-millisecond execution.
+- Orthographic normalization for phonetic variations in Romanized Malayalam spelling.
+- Dedicated translation endpoint `POST /api/translate` with input validation, confidence scoring, and source/script metadata.
+- Comprehensive audience intelligence report generation schemas and service (`backend/app/schemas/report.py`, `backend/app/services/report_service.py`).
+- Structured report endpoint `GET /api/analyze/{job_id}/report` and downloadable PDF document streaming endpoint `GET /api/analyze/{job_id}/report/pdf` built with ReportLab.
+- Background/batch comment translation endpoint `POST /api/analyze/{job_id}/translate-comments`.
+- Client-side multi-page PDF report generation utility (`frontend/src/utils/pdfGenerator.ts`) powered by jsPDF featuring Kollamo.ai branding, video metadata, Net Sentiment Approval Index, 5-class distribution table and bars, script breakdown, exemplary comments, technical methodology, and academic disclaimer.
+- Full PDF export and batch comment translation integration in `frontend/src/pages/Dashboard.tsx` with loading spinners, feedback alerts, and server fallback.
+- Added 7 new frontend Vitest tests in `frontend/src/test/reporting.test.tsx` (31/31 Vitest tests passing) and 13 new backend pytest tests in `backend/tests/test_translation.py` and `backend/tests/test_report.py` (65/65 pytest tests passing).
+
+---
+
 ## [0.8.0] - 2026-10-07
 
 ### Added

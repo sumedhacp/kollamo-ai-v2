@@ -82,3 +82,6 @@ redisdata/
 *.swp
 *.swo
 *~
+
+# Generated Exports
+*.pdf

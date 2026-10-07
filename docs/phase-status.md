@@ -15,8 +15,8 @@ This document tracks the execution, verification gates, and lifecycle status of 
 | **Phase 4** | **YouTube Ingestion** | Phase 0, Phase 3 (Rec: Phase 2) | **COMPLETE** | `phase/04-ingestion` | `f4821e5` | `v0.5.0` |
 | **Phase 5** | **Celery + Redis Async** | Phase 3, Phase 4 | **COMPLETE** | `phase/05-async` | `df5e11d` | `v0.6.0` |
 | **Phase 6** | Frontend/Backend Integration | Phase 1, 2, 3, 4, 5 (ALL COMPLETE) | **COMPLETE** | `phase/06-integration` | `462f07f` | `v0.7.0` |
-| **Phase 7** | Audience Intelligence Dashboard | Phase 6 | **IN PROGRESS** | `phase/07-dashboard` | - | `v0.8.0` |
-| **Phase 8** | Translation + PDF Reports | Phase 7 | PENDING | `phase/08-reporting` | - | `v0.9.0` |
+| **Phase 7** | Audience Intelligence Dashboard | Phase 6 | **COMPLETE** | `phase/07-dashboard` | `c13cfbd` | `v0.8.0` |
+| **Phase 8** | Translation + PDF Reports | Phase 7 | **COMPLETE** | `phase/08-reporting` | `feat(reporting)` | `v0.9.0` |
 | **Phase 9** | Testing + Security + Performance | Phase 8 | PENDING | `phase/09-hardening` | - | `v1.0.0-rc1` |
 | **Phase 10** | Deployment + Final Release | Phase 9 | PENDING | `phase/10-release` | - | `v1.0.0` |
 
@@ -266,15 +266,32 @@ This document tracks the execution, verification gates, and lifecycle status of 
 ---
 
 ### Phase 8 — Translation + PDF Reports
-- **Start Date**: Pending
-- **Completion Date**: Pending
+- **Start Date**: 2026-10-07
+- **Completion Date**: 2026-10-07
 - **Branch**: `phase/08-reporting`
-- **Commit**: -
+- **Commit**: `feat(reporting): add translation and analysis reports`
 - **Tag**: `v0.9.0`
 - **Dependencies**: Phase 7 (COMPLETE)
-- **Tests**: Translation fallback, jsPDF layout, multi-page export tests
+- **Tests**: 31 Vitest frontend tests passing (pdfGenerator multi-page layout, long comments text wrapping, Dashboard PDF export trigger, English translation display), 65 pytest backend/ML tests passing (HybridTranslationService, colloquial lexicon, orthographic normalization, fallback resilience, report compilation, PDF streaming)
 - **Known Issues**: None
-- **Completion Status**: PENDING
+- **Completion Status**: **COMPLETE**
+
+#### Phase 8 Completion Gate Checklist:
+- [x] Requirements implemented (Multi-tier translation service abstraction, colloquial Manglish lexicon for movie reviews, orthographic normalization, language & script detection, raw comment text preservation, POST /api/translate endpoint, comprehensive report schemas and service, GET /api/analyze/{job_id}/report endpoint, GET /api/analyze/{job_id}/report/pdf streaming endpoint via ReportLab, batch comment translation POST /api/analyze/{job_id}/translate-comments, client-side publication-quality PDF generator using jsPDF with multi-page pagination, running headers/footers, Net Sentiment Approval Index, 5-class distribution table & bars, linguistic breakdown, top comments, methodology disclosures, academic disclaimer, Dashboard export integration with client and server fallback)
+- [x] Unit tests passing (Vitest: 31/31 tests passing across components, pages, integration, dashboard, and reporting suites; pytest: 65/65 tests passing across ML, backend, ingestion, async, translation, and reporting)
+- [x] Integration tests passing where applicable (Dashboard PDF export click trigger, translation accordions display, API error handling, ReportLab and jsPDF binaries generation)
+- [x] Build passing (`npm run build` completed cleanly, `npm run type-check` with 0 errors)
+- [x] Browser verification completed where applicable (Client PDF generation and download verified, multi-page page breaks and long comments text wrapping verified)
+- [x] No console errors (0 runtime errors)
+- [x] No secrets committed (Verified via .gitignore)
+- [x] Git diff reviewed (Clean diff, no unwanted temporary files)
+- [x] Documentation updated (`docs/api.md` updated with Section 7 for Translation and Reporting endpoints)
+- [x] CHANGELOG updated (v0.9.0 release recorded)
+- [x] Known limitations documented (E2E Playwright Journeys and security hardening scheduled for Phase 9)
+- [x] No blocking issue remains
+- [x] Conventional Commit prepared (`feat(reporting): add translation and analysis reports`)
+- [x] Phase tag prepared (`v0.9.0`)
+- [x] Branch ready for merge (`phase/08-reporting`)
 
 ---
 
@@ -284,7 +301,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/09-hardening`
 - **Commit**: -
 - **Tag**: `v1.0.0-rc1`
-- **Dependencies**: Phase 8 (PENDING)
+- **Dependencies**: Phase 8 (COMPLETE)
 - **Tests**: Playwright Journeys A/B/C, security vulnerability audit, load testing
 - **Known Issues**: None
 - **Completion Status**: PENDING

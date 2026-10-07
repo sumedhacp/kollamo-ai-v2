@@ -85,26 +85,25 @@ class SentimentService:
 
         prediction = self.predictor.predict_single(request.text)
 
-        # Handle translation
+        # Handle translation using translation service abstraction
         translated_text: Optional[str] = None
-        translation_status = prediction.get("translation_status", "not_needed")
+        translation_status = "not_requested"
 
-        if not request.translate:
-            translation_status = "not_requested"
-        elif translation_status == "untranslated":
-            # Attempt best-effort translation if requested and appropriate
+        if request.translate:
             try:
-                from deep_translator import GoogleTranslator
+                from backend.app.services.translation_service import get_translation_service
 
-                translator = GoogleTranslator(source="auto", target="en")
-                translated = translator.translate(request.text)
-                if translated and translated.strip() != request.text.strip():
-                    translated_text = translated
+                t_svc = get_translation_service()
+                t_res = t_svc.translate_detailed(request.text)
+                if t_res.status == "translated" and t_res.text:
+                    translated_text = t_res.text
                     translation_status = "translated"
-                else:
+                elif t_res.status == "original":
                     translation_status = "original"
+                else:
+                    translation_status = t_res.status
             except Exception as e:
-                logger.debug(f"Translation skipped or failed: {e}")
+                logger.debug(f"Translation service call error: {e}")
                 translation_status = "untranslated"
 
         return SentimentResponse(

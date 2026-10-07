@@ -2,7 +2,7 @@
 
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Path as FastApiPath, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path as FastApiPath, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.config import settings
@@ -276,3 +276,131 @@ async def get_job_comments(
             or (c.translated_text and s_lower in c.translated_text.lower())
         ]
     return comments[offset : offset + limit]
+
+
+@router.get(
+    "/{job_id}/report",
+    summary="Generate comprehensive audience intelligence report payload",
+    description="Assembles a complete academic report with video metadata, 5-class metrics, net approval index, linguistic breakdown, top comments, and methodology.",
+)
+async def get_job_report(
+    job_id: str = FastApiPath(..., description="The unique UUID of the analysis job"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieves full structured report data for export."""
+    from backend.app.services.report_service import ReportService
+    from backend.app.schemas.report import AnalysisReportResponse
+
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    try:
+        return await ReportService.generate_report_data(job_id=job_uuid, session=db)
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
+    except Exception as exc:
+        logger.error(f"Failed to generate report data for job {job_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Report generation error: {str(exc)}",
+        )
+
+
+@router.get(
+    "/{job_id}/report/pdf",
+    summary="Download compiled PDF audience intelligence report",
+    description="Generates and streams a professional multi-page branded PDF report document.",
+)
+async def download_job_report_pdf(
+    job_id: str = FastApiPath(..., description="The unique UUID of the analysis job"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Streams a compiled PDF document for the analysis job."""
+    from backend.app.services.report_service import ReportService
+
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    try:
+        report_data = await ReportService.generate_report_data(job_id=job_uuid, session=db)
+        pdf_bytes = ReportService.generate_pdf_bytes(report_data)
+        filename = f"kollamo-audience-report-{job_id[:8]}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
+    except Exception as exc:
+        logger.error(f"Failed to compile PDF report for job {job_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF report generation error: {str(exc)}",
+        )
+
+
+@router.post(
+    "/{job_id}/translate-comments",
+    summary="Translate comments for an analysis job",
+    description="Executes translation for non-English comments in the job that do not yet have translations.",
+)
+async def translate_job_comments(
+    job_id: str = FastApiPath(..., description="The unique UUID of the analysis job"),
+    limit: int = Query(default=20, ge=1, le=100, description="Max comments to translate in this batch"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Translates regional comments in the job using the translation service."""
+    from backend.app.models.comment import Comment
+    from backend.app.services.translation_service import get_translation_service
+    from sqlalchemy import select
+
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid job ID format: '{job_id}'. Expected a valid UUID.",
+        )
+
+    job = await JobService.get_job_by_id(db=db, job_id=job_uuid)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis job with ID '{job_id}' not found.",
+        )
+
+    # Find comments lacking translation
+    stmt = (
+        select(Comment)
+        .where(Comment.job_id == job_uuid)
+        .where(Comment.translated_text.is_(None))
+        .limit(limit)
+    )
+    comments_to_translate = (await db.execute(stmt)).scalars().all()
+
+    translation_service = get_translation_service()
+    translated_count = 0
+
+    for comment in comments_to_translate:
+        res = translation_service.translate_detailed(comment.original_text)
+        if res.text and res.status in ("translated", "original"):
+            comment.translated_text = res.text
+            translated_count += 1
+
+    await db.commit()
+    return {
+        "job_id": str(job_uuid),
+        "translated_count": translated_count,
+        "remaining_untranslated": max(0, len(job.comments) - translated_count),
+    }

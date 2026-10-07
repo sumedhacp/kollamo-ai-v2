@@ -11,7 +11,6 @@ import {
   HelpCircle,
   Search,
   Filter,
-  Download,
   Layers,
   ArrowRight,
   ExternalLink,
@@ -22,6 +21,9 @@ import {
   FileSpreadsheet,
   FileCode,
   Tag,
+  Loader2,
+  Languages,
+  FileText,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge, SentimentBadge } from '@/components/ui/badge';
@@ -33,6 +35,7 @@ import { Alert } from '@/components/ui/alert';
 import { SentimentClass, AnalysisJob } from '@/types';
 import { api, ApiError } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
+import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
 
 export const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -227,6 +230,70 @@ export const Dashboard: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
+
+  // Export PDF Report (Client jsPDF with Server Fallback)
+  const handleExportPDF = async () => {
+    if (!job) return;
+    setIsGeneratingPdf(true);
+    setPdfNotice(null);
+    try {
+      const doc = generateAudienceIntelligencePdf(job, {
+        includeMethodology: true,
+        includeComments: true,
+        maxComments: 15,
+      });
+      doc.save(`kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`);
+      setPdfNotice('Academic PDF report compiled and downloaded successfully!');
+      setTimeout(() => setPdfNotice(null), 4000);
+    } catch (err) {
+      console.error('Client PDF export failed, falling back to server compilation:', err);
+      try {
+        const blob = await api.downloadJobPdf(job.job_id);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setPdfNotice('Server-rendered PDF report downloaded successfully!');
+        setTimeout(() => setPdfNotice(null), 4000);
+      } catch (serverErr) {
+        console.error('Server PDF download failed:', serverErr);
+        setPdfNotice('Failed to generate PDF report. Please try again.');
+      }
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // Trigger translation of comments in this job
+  const handleTranslateComments = async () => {
+    if (!job) return;
+    if (job.job_id === 'demo-aavesham-2026-sample') {
+      setPdfNotice('Demo dataset already includes pre-translated English mappings.');
+      setTimeout(() => setPdfNotice(null), 3000);
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      await api.translateJobComments(job.job_id, 25);
+      const updated = await api.getJobStatus(job.job_id);
+      setJob(updated);
+      setPdfNotice('Comment translations updated successfully!');
+      setTimeout(() => setPdfNotice(null), 3000);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setPdfNotice('Comment translation encountered an issue.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const summaryCards = [
     {
       title: 'Total Comments',
@@ -365,15 +432,47 @@ export const Dashboard: React.FC = () => {
                 <FileCode className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
                 JSON
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTranslateComments}
+                disabled={isTranslating}
+                title="Translate regional and Manglish comments for this analysis job"
+              >
+                {isTranslating ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin text-brand-600" />
+                ) : (
+                  <Languages className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
+                )}
+                Translate Comments
+              </Button>
             </>
           )}
 
-          <Button variant="secondary" size="sm" disabled title="PDF reporting scheduled for Phase 8">
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export PDF Report
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleExportPDF}
+            disabled={!job || isGeneratingPdf}
+            className="bg-brand-600 hover:bg-brand-700 text-white shadow-sm"
+            title="Download publication-quality multi-page PDF audience intelligence report"
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            {isGeneratingPdf ? 'Generating PDF...' : 'Export PDF Report'}
           </Button>
         </div>
       </div>
+
+      {/* PDF Generation or Action Feedback Alert */}
+      {pdfNotice && (
+        <Alert variant="info" title="Report Notification">
+          {pdfNotice}
+        </Alert>
+      )}
 
       {/* Fetch Error Alert */}
       {fetchError && (

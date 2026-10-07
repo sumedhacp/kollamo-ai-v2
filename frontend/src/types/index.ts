@@ -127,3 +127,84 @@ export interface AnalyzeJobCreateResponse {
   message: string;
   created_at: string;
 }
+
+export interface TranslationResponse {
+  original_text: string;
+  translated_text: string;
+  source_language: string;
+  target_language: string;
+  confidence: number;
+  detected_script?: string;
+  intermediate_malayalam?: string;
+  method: string;
+  status: string;
+}
+
+export interface ReportVideoInfo {
+  video_id: string;
+  title: string;
+  channel_title: string;
+  url: string;
+  published_at?: string;
+}
+
+export interface ReportSentimentSummary {
+  counts: SentimentCounts;
+  percentages: SentimentPercentages;
+  dominant_sentiment: string;
+  net_approval_index: number;
+  consensus_label: string;
+  average_confidence: number;
+}
+
+export interface ReportEngagementSummary {
+  total_likes: number;
+  average_likes_per_comment: number;
+  average_likes_per_sentiment: Record<string, number>;
+}
+
+export interface ReportLinguisticBreakdown {
+  malayalam_script_count: number;
+  manglish_count: number;
+  code_mixed_count: number;
+  english_count: number;
+  malayalam_percentage: number;
+  manglish_percentage: number;
+  code_mixed_percentage: number;
+  english_percentage: number;
+}
+
+export interface ReportCommentItem {
+  comment_id: string;
+  author: string;
+  original_text: string;
+  translated_text?: string;
+  sentiment: SentimentClass;
+  confidence: number;
+  like_count: number;
+  detected_script: string;
+}
+
+export interface ReportMethodology {
+  model_name: string;
+  model_version: string;
+  architecture: string;
+  sentiment_classes: string[];
+  translation_engine: string;
+  evaluation_framework: string;
+}
+
+export interface AnalysisReportResponse {
+  job_id: string;
+  title: string;
+  generated_at: string;
+  total_comments_analyzed: number;
+  video_info: ReportVideoInfo;
+  sentiment_summary: ReportSentimentSummary;
+  engagement_summary: ReportEngagementSummary;
+  linguistic_breakdown: ReportLinguisticBreakdown;
+  top_positive_comments: ReportCommentItem[];
+  top_negative_comments: ReportCommentItem[];
+  methodology: ReportMethodology;
+  disclaimer: string;
+}
