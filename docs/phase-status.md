@@ -59,7 +59,49 @@ Level 7: Recommended Engineering Practices (Advisory)
 - **Completion Principle**: A phase is marked **COMPLETE** when all REQUIRED items are verified. Deferred recommendations are formally tracked in the [Deferred Recommended Work](#deferred-recommended-work--current-blockers) registry.
 - **Specification Fallback**: The physical specification access fallback is active and recorded in [docs/spec-assumptions.md](./spec-assumptions.md). No unconfirmed requirements are fabricated.
 
+### Phase Execution Lifecycle & Stop Condition
+Every phase must execute strictly through this sequential model:
+```text
+INSPECT → PLAN → IMPLEMENT → VERIFY → DOCUMENT → COMMIT → STOP
+```
+- **Principle**: Prefer `SMALL CORRECT CHANGE` over `LARGE "COMPLETE" IMPLEMENTATION`.
+- **Stop Condition**: Upon completing the phase, output the formal completion report and **STOP**. Do not proceed to the next phase without explicit instruction.
+
+### Standard Phase Completion Report Template
+```text
+Phase: <Phase Number and Title>
+Status: <COMPLETE | INCOMPLETE | BLOCKED>
+
+Completed:
+- <List of required tasks completed>
+
+Required tests:
+- <List of test suites executed>
+
+Tests passed:
+- <Summary of passing tests / verification checks>
+
+Files changed:
+- <List of modified or created files>
+
+Recommended work deferred:
+- <List of non-blocking recommendations deferred>
+
+Known limitations:
+- <Documented limitations or environmental prerequisites>
+
+Blockers:
+- <List of active blockers, or "None">
+
+Git commit:
+- <Commit SHA and commit message>
+
+Next phase:
+- <Designated next phase, awaiting user instruction>
+```
+
 ---
+
 
 
 ## Phase Overview Matrix

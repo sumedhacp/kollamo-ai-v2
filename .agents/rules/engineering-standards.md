@@ -27,3 +27,13 @@
   - `docs(scope): message`
   - `chore(scope): message`
 - Every phase operates on its designated branch before PR/merge consideration.
+
+## Development Execution Protocol
+All development phases must strictly follow the execution lifecycle codified in [AGENTS.md](../../AGENTS.md):
+```text
+INSPECT → PLAN → IMPLEMENT → VERIFY → DOCUMENT → COMMIT → STOP
+```
+- **Principle**: Prefer `SMALL CORRECT CHANGE` over `LARGE "COMPLETE" IMPLEMENTATION`.
+- **Boundaries**: Strictly respect future-phase boundaries; never implement downstream features early.
+- **Mock Data**: Isolate mock data (`mock/`, `fixtures/`); never let mock data become production sources.
+- **Stop Condition**: Always stop after completing the requested phase. Never auto-advance.

@@ -466,3 +466,180 @@ A phase may be marked **COMPLETE** only when all 7 gate criteria are verified:
 ### 3. Recommended Work Does Not Create Blocking Dependencies
 A recommended feature must **NOT** become a phase dependency unless explicitly promoted to **REQUIRED** by a higher-priority rule.
 Optional enhancements (e.g. Storybook, advanced CI/CD stages, optional caching tiers, extra telemetry, additional documentation) must not block subsequent phases unless project rules explicitly classify them as required.
+
+---
+
+## Development Execution Protocol
+
+Every development phase across the Kollamo.ai lifecycle must adhere to this execution protocol.
+
+### 1. Objective & Guiding Principle
+- **Core Principle**: Prefer `SMALL CORRECT CHANGE` over `LARGE "COMPLETE" IMPLEMENTATION`.
+- **Purpose**: Prevent oversized phase implementations, repeating instructions, implementing future phases early, unnecessary refactoring, scope creep, treating recommendations as requirements, and marking incomplete work as complete.
+- **Standards**: Every phase must remain understandable, testable, reviewable, reversible, committed, and maintainable.
+
+### 2. Phase Execution Lifecycle
+Every development phase must strictly execute in this sequential order:
+```text
+INSPECT
+   ↓
+ PLAN
+   ↓
+IMPLEMENT
+   ↓
+ VERIFY
+   ↓
+DOCUMENT
+   ↓
+ COMMIT
+   ↓
+  STOP
+```
+*Strict Rule*: Do **NOT** automatically continue into the next phase.
+
+### 3. Step-by-Step Lifecycle Procedures
+
+#### Step 1: INSPECT
+Before starting any phase:
+1. Read applicable repository rules (`AGENTS.md`, `.agents/rules/`).
+2. Check the current phase status in `docs/phase-status.md`.
+3. Verify that all required predecessor dependencies are COMPLETE.
+4. Inspect existing implementation related to the phase to maximize reuse.
+5. Check Git working tree status (`git status`).
+6. Identify existing components, models, and endpoints that can be reused.
+*Blocker Rule*: If a required dependency is incomplete, **STOP and report the blocker**. Never bypass a dependency merely to proceed with development.
+
+#### Step 2: PLAN
+Before writing significant code, create a concise, proportional implementation plan containing:
+- **Objective**: What the current phase accomplishes.
+- **Required Work**: Only mandatory implementation tasks.
+- **Recommended Work**: Optional improvements that do not block completion.
+- **Files / Modules**: Target areas expected to be created or modified.
+- **Verification**: Exact testing methods to validate the phase.
+*Proportionality Rule*: The plan must remain proportional to the phase scope. Never turn a phase into a complete architectural rewrite.
+
+#### Step 3: IMPLEMENT
+During code implementation:
+- **MUST**:
+  - Follow applicable repository rules and approved architectures.
+  - Satisfy all REQUIRED phase objectives.
+  - Preserve existing working functionality.
+  - Write clean, maintainable, idiomatic code with full typing.
+  - Add appropriate automated unit and integration tests.
+  - Handle errors properly with standardized error envelopes.
+  - Protect secrets and credentials (`.env` only).
+  - Avoid fake functionality or mock shortcuts.
+- **MUST NOT**:
+  - Implement future phases ahead of schedule.
+  - Redesign unrelated modules or rewrite working code.
+  - Introduce unnecessary external dependencies.
+  - Create placeholder functionality that pretends to work.
+  - Fabricate ML predictions, confidence scores, or API responses.
+  - Fabricate progress bars or task completion states.
+  - Claim unverified accuracy or performance.
+  - Silently alter project specifications or requirements.
+
+#### Step 4: VERIFY (Testing & Verification Rules)
+- **Proportional Testing**: Testing must be proportional to the phase; never postpone all testing to a final phase.
+- **Minimum Criteria**: Verify expected behavior, test critical failure modes, and ensure zero regression of existing features.
+- **Automated Tests**: Unit tests for isolated logic; integration tests for interconnected services. Avoid creating hundreds of redundant tests solely to inflate test counts.
+
+#### Step 5: DOCUMENT
+- Update corresponding documentation (`docs/`, `AGENTS.md`, `README.md`) to reflect newly implemented capabilities.
+- Record any deferred recommended work in `docs/phase-status.md`.
+
+#### Step 6: COMMIT (Git Execution Protocol)
+- Run `git status` to verify working state.
+- Keep changes strictly focused; avoid unrelated formatting or renames.
+- Run `git diff` and `git diff --check` to review modifications.
+- Verify: only intended files changed, no secrets committed, no generated artifacts tracked, all tests pass, documentation is current.
+- Commit using Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`). Never use meaningless messages (`update`, `changes`, `done`, `work`).
+
+#### Step 7: STOP (Phase Termination)
+- Output the formal Phase Completion Report.
+- **STOP immediately**. Wait for explicit user instructions before beginning any subsequent phase.
+
+---
+
+## Domain-Specific Phase Protocols
+
+### 1. Future-Phase Boundary Rule
+If implementation reveals requirements or interfaces that belong to a subsequent phase:
+- Do **NOT** implement them early.
+- Document the interface boundary or create a clear phase note/TODO.
+- Continue the current phase only if it can be correctly completed with defined contracts.
+- If a missing downstream dependency strictly blocks the current phase, report it as a blocker.
+
+### 2. Mock Data Isolation Rule
+- Mock data is permitted **only** when a phase is specifically focused on UI or interface scaffolding prior to backend integration.
+- Mock datasets must be strictly isolated (e.g. `mock/`, `fixtures/`, `__mocks__/`).
+- Mock data must **never** silently become the production data source.
+- When backend integration begins, mock data must be cleanly replaceable without altering UI architecture.
+
+### 3. UI Development Protocol
+- **REQUIRED**: Clear information hierarchy, responsive viewport layouts (mobile, tablet, desktop), readable typography, consistent spacing tokens, WCAG 2.1 AA accessible elements, distinct state handling (Loading, Empty, Success, Error), intuitive navigation, and consistent design primitives.
+- **RECOMMENDED**: Subtle animations, micro-interactions, additional visual polish, advanced a11y enhancements, and design-system documentation.
+- *Rule*: Never sacrifice functional usability for visual effects; avoid gratuitous or distracting animations.
+
+### 4. Error and Loading State Protocols
+Every user-facing asynchronous interaction must deterministically handle:
+```text
+Idle → Loading → Success
+```
+and:
+```text
+Loading → Error
+```
+Where applicable, interfaces must also gracefully manage empty results, network timeouts, invalid inputs, service unavailability, partial responses, and cancellation. Never display fake progress; if progress cannot be measured, use an honest indeterminate state.
+
+### 5. ML & NLP Protocol
+- Predictions must stem strictly from the configured MuRIL inference pipeline.
+- Strictly forbidden: keyword sentiment dictionaries, hardcoded responses, fake confidence scores, random predictions, and placeholder predictions.
+- If the model is not yet loaded or available, clearly expose the missing dependency rather than simulating results.
+- Never claim an accuracy percentage unless experimentally validated on a held-out test split.
+
+### 6. Backend & API Protocol
+- Every endpoint must provide explicit request validation, typed response schemas, meaningful RFC error handling, appropriate HTTP status codes, and secure environment configuration.
+- API keys, database credentials, and service tokens must never be hard-coded; use environment variables exclusively.
+
+### 7. Database Protocol
+- Database schema changes must be intentional and managed via Alembic migrations.
+- Inspect existing schema, identify dependencies, verify necessity, preserve existing data, and document schema decisions in `docs/database.md`. Avoid repeated redesigns during unrelated phases.
+
+---
+
+## Standard Phase Completion Report Format
+
+At the conclusion of every development phase, the agent must output this exact report structure:
+
+```text
+Phase: <Phase Number and Title>
+Status: <COMPLETE | INCOMPLETE | BLOCKED>
+
+Completed:
+- <List of required tasks completed>
+
+Required tests:
+- <List of test suites executed>
+
+Tests passed:
+- <Summary of passing tests / verification checks>
+
+Files changed:
+- <List of modified or created files>
+
+Recommended work deferred:
+- <List of non-blocking recommendations deferred>
+
+Known limitations:
+- <Documented limitations or environmental prerequisites>
+
+Blockers:
+- <List of active blockers, or "None">
+
+Git commit:
+- <Commit SHA and commit message>
+
+Next phase:
+- <Designated next phase, awaiting user instruction>
+```
