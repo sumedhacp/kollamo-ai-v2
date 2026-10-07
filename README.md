@@ -13,7 +13,10 @@
 
 **Kollamo.ai** is an academic Master of Computer Applications (MCA) platform designed for fine-grained sentiment analysis and audience intelligence across regional Indian social web conversations. Specifically tailored for **Malayalam script**, **Manglish** (Romanized Malayalam), **English**, and **Malayalam-English code-mixed comments**, Kollamo.ai provides high-throughput ingestion of YouTube video comment threads, asynchronous neural classification, English translations for readability, and an executive audience intelligence dashboard.
 
+> **Development Status**: **Phase 0 — Repository Foundation** is verified and complete. The repository structure, environment configuration, frontend/backend builds, and health check services are fully established.
+
 ---
+
 
 ## 🏛️ System Architecture
 
