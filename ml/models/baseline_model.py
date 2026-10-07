@@ -8,7 +8,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from ml.data.dataset_loader import SENTIMENT_LABELS, LABEL2ID, ID2LABEL
+from ml.models.taxonomy import SENTIMENT_LABELS, LABEL2ID, ID2LABEL
 
 
 class BaselineClassifier:

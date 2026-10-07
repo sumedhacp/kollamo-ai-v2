@@ -1,7 +1,8 @@
 """Dataset Loader and Splitter for Kollamo.ai NLP Pipeline.
 
 Handles stratified partitioning, class distribution verification,
-balanced class weights calculation, and strict data leakage prevention.
+balanced class weights calculation, class percentage calculation,
+and strict data leakage prevention.
 """
 
 import json
@@ -11,10 +12,13 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from ml.preprocessing.cleaner import clean_text
-
-SENTIMENT_LABELS = ["positive", "negative", "neutral", "mixed", "unsupported"]
-LABEL2ID = {label: idx for idx, label in enumerate(SENTIMENT_LABELS)}
-ID2LABEL = {idx: label for label, idx in LABEL2ID.items()}
+from ml.models.taxonomy import (
+    SENTIMENT_LABELS,
+    SENTIMENT_CLASSES,
+    ID2LABEL,
+    ID2CLASS,
+    LABEL2ID,
+)
 
 
 def load_raw_corpus(corpus_path: str = None) -> List[Dict[str, Any]]:
@@ -28,16 +32,18 @@ def load_raw_corpus(corpus_path: str = None) -> List[Dict[str, Any]]:
 
 def prepare_dataset(
     corpus_path: str = None,
-    test_size: float = 0.2,
+    test_size: float = 0.1,
     val_size: float = 0.1,
     random_state: int = 42,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
-    """Loads, cleans, and partitions corpus into train, val, test splits.
+    """Loads, cleans, and partitions corpus into train (80%), val (10%), test (10%) splits.
 
     Guarantees:
     - Stratified distribution across all 5 classes
     - Deterministic reproducibility via `random_state`
     - Zero data leakage between train, val, and test splits
+    - Isolated held-out test partition
+    - Comprehensive class count and percentage measurements
     """
     raw_data = load_raw_corpus(corpus_path)
     df = pd.DataFrame(raw_data)
@@ -55,7 +61,7 @@ def prepare_dataset(
         unknown_labels = df[df["label_id"].isnull()]["label"].unique()
         raise ValueError(f"Encountered invalid labels in corpus: {unknown_labels}")
 
-    # First split: train + val vs test
+    # First split: train + val vs test (isolated held-out test split)
     train_val_df, test_df = train_test_split(
         df,
         test_size=test_size,
@@ -83,16 +89,21 @@ def prepare_dataset(
     assert len(train_test_overlap) == 0, f"Data leakage detected! Overlapping texts: {train_test_overlap}"
     assert len(train_val_overlap) == 0, f"Data leakage detected! Overlapping texts: {train_val_overlap}"
 
-    # Class distributions
+    # Class distribution measurement
     total_samples = len(df)
     class_counts = df["label"].value_counts().to_dict()
+    class_percentages = {
+        label: round((count / max(total_samples, 1)) * 100.0, 2)
+        for label, count in class_counts.items()
+    }
     n_classes = len(SENTIMENT_LABELS)
 
     # Calculate inverse frequency class weights: N / (C * count)
     class_weights = {}
     for label, idx in LABEL2ID.items():
-        count = class_counts.get(label, 0)
-        class_weights[idx] = float(total_samples / (n_classes * max(count, 1)))
+        if isinstance(idx, int):
+            count = class_counts.get(label, 0)
+            class_weights[idx] = float(total_samples / (n_classes * max(count, 1)))
 
     metadata = {
         "total_samples": total_samples,
@@ -100,6 +111,7 @@ def prepare_dataset(
         "val_samples": len(val_df),
         "test_samples": len(test_df),
         "class_counts": class_counts,
+        "class_percentages": class_percentages,
         "class_weights": class_weights,
         "random_state": random_state,
         "sentiment_labels": SENTIMENT_LABELS,

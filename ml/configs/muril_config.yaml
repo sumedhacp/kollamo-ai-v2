@@ -1,11 +1,26 @@
-# Google MuRIL 5-Class Multilingual Sentiment Configuration
-experiment_name: "muril_multilingual_sentiment"
-model_architecture: "google/muril-base-cased"
+# Google MuRIL 5-Class Multilingual Sentiment Fine-Tuning Configuration
+# Official Base Checkpoint: google/muril-base-cased (BERT-base, 12 layers, 12 heads, 768 hidden, 512 max pos)
+# Output Artifact: kollamo-muril-sentiment-5class
+
+experiment_name: "kollamo_muril_5class_sentiment"
+model_version: "v1.0.0"
+
+model:
+  base_model: "google/muril-base-cased"
+  checkpoint_name: "kollamo-muril-sentiment-5class"
+  num_labels: 5
+  architecture: "MuRIL Transformer Encoder + 5-Class Classification Head"
+  label_mapping:
+    0: "Positive"
+    1: "Negative"
+    2: "Neutral"
+    3: "Mixed"
+    4: "Unsupported"
 
 hyperparameters:
   seed: 42
   num_classes: 5
-  max_length: 128
+  max_length: 128            # Configurable up to 512 (MuRIL maximum position embeddings)
   batch_size: 16
   learning_rate: 2.0e-5
   weight_decay: 0.01
@@ -15,13 +30,16 @@ hyperparameters:
   dropout_prob: 0.2
 
 loss:
-  use_weighted_loss: true
+  objective: "5-class single-label cross-entropy"
+  use_weighted_loss: true     # Inverse frequency class weighting to counter class imbalance
 
 paths:
-  save_dir: "ml/models/saved_weights/muril_sentiment_v1"
+  save_dir: "ml/models/saved_weights/kollamo-muril-sentiment-5class"
   metrics_output: "ml/evaluation/reports/muril_metrics.json"
 
 data:
-  test_size: 0.2
-  val_size: 0.1
+  split_strategy: "stratified_no_leakage"
+  train_size: 0.80
+  val_size: 0.10
+  test_size: 0.10
   random_state: 42

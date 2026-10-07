@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import torch
-from ml.models.loader import ModelLoader
-from ml.exceptions import ModelLoadingError, ConfigurationError
+from ml.models.loader import ModelLoader, BASE_PRETRAINED_MODEL, DEFAULT_CHECKPOINT_NAME
+from ml.exceptions import ModelLoadingError, ModelNotTrainedError, ConfigurationError
 from ml.models.baseline_model import BaselineClassifier
 from ml.inference.predictor import SentimentPredictor
 
@@ -12,6 +12,9 @@ from ml.inference.predictor import SentimentPredictor
 def test_model_loader_initialization_and_device():
     loader = ModelLoader(device="cpu")
     assert loader.device == "cpu"
+    assert loader.model_name == "google/muril-base-cased"
+    assert BASE_PRETRAINED_MODEL == "google/muril-base-cased"
+    assert DEFAULT_CHECKPOINT_NAME == "kollamo-muril-sentiment-5class"
     assert not loader.is_loaded()
 
 
@@ -47,7 +50,7 @@ def test_model_loader_unload():
 
 def test_model_loader_invalid_model_type():
     loader = ModelLoader(model_type="invalid_type", device="cpu")
-    with pytest.raises(ModelLoadingError):
+    with pytest.raises(ConfigurationError):
         loader.load_model()
 
 
@@ -63,3 +66,28 @@ def test_model_loader_muril_mocked():
     assert isinstance(predictor, SentimentPredictor)
     assert predictor.model is mock_model
     assert predictor.tokenizer is mock_tokenizer
+
+
+def test_model_loader_untrained_muril_raises_model_not_trained_error():
+    # Production guard: Attempting to load untrained base model for inference raises ModelNotTrainedError
+    loader = ModelLoader(
+        model_type="muril",
+        weights_path="ml/models/saved_weights/nonexistent_model.pt",
+        allow_untrained_fallback=False,
+    )
+    with pytest.raises(ModelNotTrainedError) as exc_info:
+        loader.load_model()
+    assert "MODEL_NOT_TRAINED" in str(exc_info.value)
+    assert exc_info.value.details.get("status") == "MODEL_NOT_TRAINED"
+
+
+def test_model_loader_test_fallback_mode():
+    loader = ModelLoader(
+        model_type="muril",
+        allow_untrained_fallback=True,
+    )
+    with patch("ml.models.muril_classifier.MurilSentimentClassifier.__init__", return_value=None):
+        with patch.object(torch.nn.Module, "to", return_value=None):
+            with patch.object(torch.nn.Module, "eval", return_value=None):
+                model = loader.load_model()
+                assert model is not None

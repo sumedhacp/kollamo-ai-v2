@@ -16,7 +16,16 @@ from typing import Dict, Any, Optional, Tuple, List
 import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer, AutoConfig
-from ml.data.dataset_loader import SENTIMENT_LABELS, ID2LABEL, LABEL2ID
+from ml.models.taxonomy import (
+    SENTIMENT_LABELS,
+    SENTIMENT_CLASSES,
+    ID2LABEL,
+    ID2CLASS,
+    LABEL2ID,
+)
+
+# Authoritative Base Pretrained Model from Hugging Face
+DEFAULT_BASE_CHECKPOINT = "google/muril-base-cased"
 
 
 class MurilClassificationHead(nn.Module):

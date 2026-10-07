@@ -18,7 +18,7 @@ import time
 from typing import Dict, Any, List, Union, Optional
 import numpy as np
 import torch
-from ml.data.dataset_loader import SENTIMENT_LABELS, ID2LABEL, LABEL2ID
+from ml.models.taxonomy import SENTIMENT_LABELS, ID2LABEL, LABEL2ID
 from ml.preprocessing.cleaner import clean_text
 from ml.preprocessing.detector import analyze_script_and_language
 from ml.exceptions import InferenceError, UnsupportedInputError

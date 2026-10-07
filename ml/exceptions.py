@@ -15,6 +15,13 @@ class ModelLoadingError(KollamoMLException):
     pass
 
 
+class ModelNotTrainedError(ModelLoadingError):
+    """Raised when attempting production inference with an untrained base model or missing fine-tuned checkpoint."""
+
+    def __init__(self, message: str = "Trained Kollamo checkpoint not found. Status: MODEL_NOT_TRAINED", details: dict = None):
+        super().__init__(message, details=details or {"status": "MODEL_NOT_TRAINED"})
+
+
 class InferenceError(KollamoMLException):
     """Raised when an unrecoverable error occurs during model forward pass."""
     pass

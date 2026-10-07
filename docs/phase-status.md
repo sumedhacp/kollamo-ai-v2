@@ -206,18 +206,38 @@ Next phase:
 
 ### Phase 2 — ML/NLP Foundation
 - **Start Date**: 2026-10-06
-- **Completion Date**: 2026-10-06 (Re-verified 2026-10-07)
+- **Completion Date**: 2026-10-06 (Clarification patch verified 2026-10-08)
 - **Branch**: `main`
-- **Commit**: `feat: add Kollamo.ai ML NLP foundation`
+- **Commit**: `feat(ml): apply MuRIL 5-class checkpoint strategy and training requirements`
 - **Tag**: `v0.3.0`
 - **Dependencies**: Phase 1 (COMPLETE)
-- **Tests**: 32 unit/contract tests passing across 6 test suites in `ml/tests/` (loader, preprocessing, inference, muril, baseline, exceptions), 8 backend health & sentiment integration tests passing with 0 regressions
+- **Tests**: 40 unit/contract tests passing across 9 test suites in `ml/tests/` (loader, preprocessing, inference, muril, baseline, exceptions, taxonomy, metrics, data_loader), 8 backend health & sentiment integration tests passing with 0 regressions
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
 
 #### Phase 2 Completion Gate Checklist:
-- [x] Requirements implemented (Malayalam script, Manglish, English, Code-mixed support; safe Unicode NFKC & repeated-char normalization; zero keyword dictionaries or if/else rules; 5 sentiment classes; stratified dataset split with zero data leakage; balanced class weights; TF-IDF baseline model; Google MuRIL architecture; ModelLoader lifecycle abstraction; inference predictor; 8-category error analysis; structured error taxonomy)
-- [x] Unit tests passing (pytest: 32/32 tests passed across 6 test suites in ml/tests/)
+- [x] Exact base checkpoint is `google/muril-base-cased` (no mBERT/XLM-R substitutions permitted)
+- [x] Base checkpoint is clearly distinguished from fine-tuned sentiment model (`kollamo-muril-sentiment-5class`)
+- [x] Five-class classification head is defined (Linear 768 -> 5 with LayerNorm and Dropout 0.2)
+- [x] Label mapping is fixed and centralized in `ml/models/taxonomy.py` (0=Positive, 1=Negative, 2=Neutral, 3=Mixed, 4=Unsupported)
+- [x] Five-class training requirements are documented (`docs/ml-pipeline.md`, `docs/annotation-policy.md`)
+- [x] Dataset schema is defined (`id`, `text`, `label`, `language`, `script`)
+- [x] Language coverage requirements are documented (Malayalam script, English, Manglish, Code-mixed)
+- [x] Unsupported-class policy is documented (`docs/annotation-policy.md`, `ml/preprocessing/cleaner.py`)
+- [x] Train/validation/test split is defined (80% train, 10% val, 10% held-out test)
+- [x] Data leakage controls are defined (Zero text overlap between splits strictly asserted)
+- [x] Class distribution is measurable (Counts, percentages, and inverse frequency class weights)
+- [x] Training configuration is reproducible (`ml/configs/muril_config.yaml`)
+- [x] Evaluation metrics are defined (Accuracy, Macro/Weighted F1, Per-class Precision/Recall/F1)
+- [x] Per-class metrics are required and surfaced across all 5 discrete classes
+- [x] Mixed-class performance is explicitly evaluated (`mixed_class_evaluation` in `metrics.py`)
+- [x] Unsupported-class performance is explicitly evaluated (`unsupported_class_evaluation` in `metrics.py`)
+- [x] Confusion matrix is required (5x5 multi-class confusion matrix generated)
+- [x] No fabricated metrics (Target accuracy documented strictly as a design goal, not claimed performance)
+- [x] No fabricated predictions (`ModelNotTrainedError` prevents fake outputs when weights are missing)
+- [x] Base MuRIL checkpoint is used for fine-tuning initialization
+- [x] Fine-tuned Kollamo checkpoint is used for actual inference (`kollamo-muril-sentiment-5class`)
+- [x] Model artifact/versioning strategy is documented (`docs/model-card.md`)
 - [x] Integration tests passing where applicable (Model save & load, inference schema, and probability distribution sums to 1.0 verified)
 - [x] Build passing (Python module imports, configs, and pipelines execute cleanly)
 - [x] Browser verification completed where applicable (N/A for ML pipeline; verified in Phase 1)

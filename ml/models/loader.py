@@ -3,6 +3,9 @@
 Provides a decoupled ModelLoader interface so backend services and worker
 processes can manage model weights, device placement, and inference pipelines
 without scattering Hugging Face or PyTorch initialization code across the application.
+
+Strictly enforces the separation between base pretrained model (google/muril-base-cased)
+and the fine-tuned 5-class Kollamo sentiment classifier (kollamo-muril-sentiment-5class).
 """
 
 import logging
@@ -11,12 +14,21 @@ from pathlib import Path
 from typing import Optional, Any, Union, Dict
 import torch
 
-from ml.exceptions import ModelLoadingError, ConfigurationError
+from ml.exceptions import ModelLoadingError, ModelNotTrainedError, ConfigurationError
 from ml.models.baseline_model import BaselineClassifier
 from ml.models.muril_classifier import MurilSentimentClassifier
-from ml.inference.predictor import SentimentPredictor
+from ml.models.taxonomy import (
+    SENTIMENT_LABELS,
+    SENTIMENT_CLASSES,
+    ID2LABEL,
+    ID2CLASS,
+    LABEL2ID,
+)
 
 logger = logging.getLogger(__name__)
+
+BASE_PRETRAINED_MODEL = "google/muril-base-cased"
+DEFAULT_CHECKPOINT_NAME = "kollamo-muril-sentiment-5class"
 
 
 class ModelLoader:
@@ -24,26 +36,30 @@ class ModelLoader:
 
     def __init__(
         self,
-        model_name: str = "google/muril-base-cased",
+        model_name: str = BASE_PRETRAINED_MODEL,
         weights_path: Optional[Union[str, Path]] = None,
         device: str = "cpu",
         num_classes: int = 5,
         model_type: str = "auto",
+        allow_untrained_fallback: bool = False,
     ):
         """Initializes model loader configuration.
 
         Args:
-            model_name: Base Hugging Face model identifier or directory.
+            model_name: Base Hugging Face model identifier (must be google/muril-base-cased).
             weights_path: Path to fine-tuned weights file or checkpoint directory.
             device: Computing device ('cpu', 'cuda', 'mps', or 'auto').
-            num_classes: Target sentiment categories (default 5).
+            num_classes: Target sentiment categories (strictly 5).
             model_type: 'muril', 'baseline', or 'auto' (inferred from weights_path).
+            allow_untrained_fallback: If True, allows raw architectural initialization without trained weights
+                                      strictly for automated unit testing; never for production inference.
         """
         self.model_name = model_name
         self.weights_path = Path(weights_path) if weights_path else None
         self.requested_device = device
         self.num_classes = num_classes
         self.model_type = model_type
+        self.allow_untrained_fallback = allow_untrained_fallback
 
         self._device = self._resolve_device(device)
         self._tokenizer: Optional[Any] = None
@@ -70,7 +86,7 @@ class ModelLoader:
         return self._predictor is not None and self._model is not None
 
     def load_tokenizer(self, force_reload: bool = False) -> Any:
-        """Loads and caches the Hugging Face tokenizer."""
+        """Loads and caches the official MuRIL WordPiece tokenizer."""
         if self._tokenizer is not None and not force_reload:
             return self._tokenizer
 
@@ -109,7 +125,7 @@ class ModelLoader:
                     self._model = BaselineClassifier.load(str(self.weights_path))
                 else:
                     logger.warning("Baseline weights not found. Fitting fallback in-memory baseline.")
-                    from ml.data.dataset_loader import load_raw_corpus, prepare_dataset
+                    from ml.data.dataset_loader import prepare_dataset
                     train_df, _, _, _ = prepare_dataset()
                     self._model = BaselineClassifier()
                     self._model.fit(train_df["clean_text"].tolist(), train_df["label_id"].tolist())
@@ -117,20 +133,32 @@ class ModelLoader:
 
             elif inferred_type == "muril":
                 if self.weights_path and self.weights_path.exists():
+                    logger.info(f"Loading fine-tuned Kollamo checkpoint from: {self.weights_path}")
                     self._model = MurilSentimentClassifier.from_pretrained(
                         str(self.weights_path),
                         num_classes=self.num_classes,
                         device=self._device,
                     )
                 else:
-                    # Initialize architecture from base pretrained or config
+                    # Enforce critical rule: Base model is NOT the finished sentiment model
+                    if not self.allow_untrained_fallback:
+                        err_msg = (
+                            f"Trained Kollamo checkpoint not found at '{self.weights_path or 'unspecified'}'. "
+                            f"Base pretrained '{self.model_name}' cannot be used directly for production sentiment "
+                            f"inference without task-specific fine-tuning. Status: MODEL_NOT_TRAINED"
+                        )
+                        logger.error(err_msg)
+                        raise ModelNotTrainedError(err_msg, details={"status": "MODEL_NOT_TRAINED"})
+
+                    # In test-only mode with allow_untrained_fallback=True
+                    logger.warning("Initializing raw architecture without trained weights (TEST ONLY).")
                     self._model = MurilSentimentClassifier(
                         model_name=self.model_name,
                         num_classes=self.num_classes,
-                        pretrained=True,
+                        pretrained=False,
                     )
                     self._model.to(self._device)
-                
+
                 self._model.eval()
                 return self._model
 
@@ -138,13 +166,17 @@ class ModelLoader:
                 raise ConfigurationError(f"Unsupported model type: {inferred_type}")
 
         except Exception as e:
+            if isinstance(e, (ModelLoadingError, ModelNotTrainedError, ConfigurationError)):
+                raise
             logger.error(f"Failed to load sentiment model: {e}")
             raise ModelLoadingError(f"Model initialization failed: {str(e)}") from e
 
-    def get_predictor(self, force_reload: bool = False) -> SentimentPredictor:
+    def get_predictor(self, force_reload: bool = False) -> Any:
         """Initializes and returns a reusable SentimentPredictor instance."""
         if self._predictor is not None and not force_reload:
             return self._predictor
+
+        from ml.inference.predictor import SentimentPredictor
 
         model = self.load_model(force_reload=force_reload)
 

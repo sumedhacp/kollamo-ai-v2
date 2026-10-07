@@ -7,6 +7,18 @@ from .muril_classifier import (
     MurilClassificationHead,
 )
 from .loader import ModelLoader
+from .taxonomy import (
+    CLASS_ID_POSITIVE,
+    CLASS_ID_NEGATIVE,
+    CLASS_ID_NEUTRAL,
+    CLASS_ID_MIXED,
+    CLASS_ID_UNSUPPORTED,
+    SENTIMENT_CLASSES,
+    SENTIMENT_LABELS,
+    ID2LABEL,
+    ID2CLASS,
+    LABEL2ID,
+)
 
 __all__ = [
     "BaselineClassifier",
@@ -14,4 +26,14 @@ __all__ = [
     "MuRILSentimentClassifier",
     "MurilClassificationHead",
     "ModelLoader",
+    "CLASS_ID_POSITIVE",
+    "CLASS_ID_NEGATIVE",
+    "CLASS_ID_NEUTRAL",
+    "CLASS_ID_MIXED",
+    "CLASS_ID_UNSUPPORTED",
+    "SENTIMENT_CLASSES",
+    "SENTIMENT_LABELS",
+    "ID2LABEL",
+    "ID2CLASS",
+    "LABEL2ID",
 ]

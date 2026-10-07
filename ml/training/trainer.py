@@ -9,10 +9,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
-from ml.data.dataset_loader import SENTIMENT_LABELS, LABEL2ID, ID2LABEL
+from ml.models.taxonomy import SENTIMENT_LABELS, LABEL2ID, ID2LABEL, ID2CLASS, SENTIMENT_CLASSES
 from ml.models.muril_classifier import MurilSentimentClassifier
 from ml.evaluation.metrics import compute_sentiment_metrics, save_experiment_report
 from ml.evaluation.error_analyzer import run_error_analysis
+from ml.exceptions import ModelLoadingError
 
 
 class CommentSentimentDataset(Dataset):
@@ -68,12 +69,15 @@ class MurilTrainer:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
+        # Official base pretrained model: google/muril-base-cased
         self.model_name = config.get("model_architecture", "google/muril-base-cased")
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        except Exception:
-            # Fallback to bert-base-multilingual if offline or local tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+        except Exception as e:
+            raise ModelLoadingError(
+                f"Failed to load official MuRIL tokenizer from '{self.model_name}'. "
+                f"Per Phase 2 rules, mBERT/XLM-R substitution is strictly forbidden: {e}"
+            ) from e
 
         self.model = MurilSentimentClassifier(
             model_name=self.model_name,
@@ -96,7 +100,7 @@ class MurilTrainer:
         epochs = hp.get("epochs", 3)
         lr = float(hp.get("learning_rate", 2e-5))
         weight_decay = float(hp.get("weight_decay", 0.01))
-        save_dir = Path(self.config.get("paths", {}).get("save_dir", "ml/models/saved_weights/muril_sentiment_v1"))
+        save_dir = Path(self.config.get("paths", {}).get("save_dir", "ml/models/saved_weights/kollamo-muril-sentiment-5class"))
         save_dir.mkdir(parents=True, exist_ok=True)
 
         # Datasets & DataLoaders
