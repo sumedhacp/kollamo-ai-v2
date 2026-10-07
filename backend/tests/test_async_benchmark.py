@@ -1,11 +1,13 @@
-"""Large-Scale Asynchronous Micro-Batching Benchmark (3,500+ Comments Fixture)."""
+"""Large-Scale Multi-Tier Micro-Batching Benchmark (50, 100, 250, 500, 1,000, 3,500+ Comments)."""
 
 import time
+import tracemalloc
 import pytest
 from backend.app.services.sentiment_service import SentimentService
 from backend.app.models.comment import Comment
 from backend.app.models.prediction import Prediction
 from backend.app.workers.tasks import compute_summary_metrics
+from backend.app.schemas.sentiment import SentimentRequest
 
 # Base template snippets representing Malayalam, Manglish, Code-mixed, and English
 COMMENT_TEMPLATES = [
@@ -32,6 +34,61 @@ def generate_benchmark_comments(count: int = 3500) -> list[str]:
     return comments
 
 
+def test_single_comment_latency_benchmark():
+    """Verifies single-comment sentiment classification latency is under 50ms."""
+    service = SentimentService.get_instance()
+    assert service.is_ready()
+
+    sample = "Padam kidilan aayirunnu bro, super acting"
+    req = SentimentRequest(text=sample, translate=False)
+
+    # Warmup
+    service.analyze_comment(req)
+
+    # Measure 50 iterations
+    latencies = []
+    for _ in range(50):
+        t0 = time.perf_counter()
+        res = service.analyze_comment(req)
+        latencies.append((time.perf_counter() - t0) * 1000)
+
+    avg_ms = sum(latencies) / len(latencies)
+    p95_ms = sorted(latencies)[int(len(latencies) * 0.95)]
+
+    assert p95_ms < 50.0, f"P95 latency was {p95_ms:.2f}ms (threshold 50ms)"
+    assert res.sentiment in ["positive", "negative", "neutral", "mixed", "unsupported"]
+
+
+@pytest.mark.parametrize("scale", [50, 100, 250, 500, 1000])
+def test_multiscale_batch_benchmark(scale: int):
+    """Benchmarks sentiment inference and memory across scale tiers: 50, 100, 250, 500, 1000."""
+    service = SentimentService.get_instance()
+    assert service.is_ready()
+
+    fixture_comments = generate_benchmark_comments(scale)
+    batch_size = 64
+
+    tracemalloc.start()
+    start_time = time.perf_counter()
+
+    all_predictions = []
+    for i in range(0, len(fixture_comments), batch_size):
+        chunk = fixture_comments[i : i + batch_size]
+        batch_preds = service.predictor.predict_batch(chunk)
+        all_predictions.extend(batch_preds)
+
+    elapsed_time = time.perf_counter() - start_time
+    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    throughput = scale / elapsed_time
+
+    assert len(all_predictions) == scale
+    assert throughput > 100.0, f"Throughput at scale {scale} was {throughput:.2f} comments/sec"
+    # Memory footprint should stay under 50MB peak for batches
+    assert peak_mem < 50 * 1024 * 1024
+
+
 def test_micro_batch_3500_comments_benchmark():
     """Benchmarks sentiment prediction throughput and memory stability on 3,500+ comments."""
     service = SentimentService.get_instance()
@@ -40,6 +97,7 @@ def test_micro_batch_3500_comments_benchmark():
     fixture_comments = generate_benchmark_comments(3500)
     assert len(fixture_comments) == 3500
 
+    tracemalloc.start()
     start_time = time.perf_counter()
 
     # Process in micro-batches of 64
@@ -51,10 +109,12 @@ def test_micro_batch_3500_comments_benchmark():
         all_predictions.extend(batch_preds)
 
     elapsed_time = time.perf_counter() - start_time
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
     throughput = len(fixture_comments) / elapsed_time
 
     assert len(all_predictions) == 3500
-    # Throughput benchmark: must exceed 100 comments/sec on baseline CPU
     assert throughput > 100.0, f"Throughput was {throughput:.2f} comments/sec"
 
     # Simulate metrics computation on all 3,500 predictions
@@ -76,4 +136,3 @@ def test_micro_batch_3500_comments_benchmark():
     assert total_count == 3500
     assert 99.8 <= total_pct <= 100.2
     assert metrics["engagement_metrics"]["total_likes"] > 0
-    print(f"\n[BENCHMARK] 3,500 comments processed in {elapsed_time:.3f}s ({throughput:.1f} comments/sec)")

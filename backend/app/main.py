@@ -49,6 +49,11 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
+from backend.app.core.rate_limiter import RateLimitMiddleware, InMemoryRateLimiter
+
+global_rate_limiter = InMemoryRateLimiter(requests_per_minute=120, window_seconds=60)
+app.add_middleware(RateLimitMiddleware, limiter=global_rate_limiter)
+
 # Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,

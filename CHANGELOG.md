@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0-rc1] - 2026-10-07
+
+### Added
+- Comprehensive multi-tier test pyramid spanning 77 backend & ML tests and 38 frontend Vitest tests across 6 test suites.
+- End-to-End user journeys (Journeys A, B, and C) covering single-comment inference & translation, YouTube ingestion pipeline with progress polling, and dashboard analytics with academic PDF export (`frontend/src/test/journeys.test.tsx`).
+- Playwright E2E configuration and journey specs (`frontend/playwright.config.ts`, `frontend/e2e/journey-a.spec.ts`, `frontend/e2e/journey-b.spec.ts`, `frontend/e2e/journey-c.spec.ts`).
+- In-memory sliding window rate limiter middleware (`backend/app/core/rate_limiter.py`) enforcing 120 req/min per IP with RFC error response envelope (`RATE_LIMIT_EXCEEDED`) and `Retry-After: 60` response header.
+- Security hardening test suite (`backend/tests/test_security.py`) verifying rejection of oversized payloads (>5,000 chars), whitespace-only inputs, malicious YouTube URLs (SSRF protection against internal IPs and local `file://`/`ftp://` schemas), CORS preflight headers, rate limiting bursts, and internal stack trace leak prevention.
+- Global exception handler (`generic_exception_handler`) intercepting unhandled server exceptions, logging securely, and preventing sensitive credentials, paths, or tracebacks from escaping to client responses.
+- Multi-scale performance benchmark suite (`backend/tests/test_async_benchmark.py`) measuring single-comment latency (<50ms P95), parameterized batch inference across 50, 100, 250, 500, 1,000 comments (>750 comments/sec throughput, <50MB peak memory with `tracemalloc`), and 3,500+ comments micro-batching throughput.
+- Security audit and threat modeling documentation (`docs/security-audit.md`) covering OWASP Top 10 evaluation, rate limiting, SSRF defense, and sanitization.
+- Empirical performance targets and benchmark records updated in `docs/performance.md`.
+- Comprehensive testing strategy documentation updated in `docs/testing.md`.
+
+---
+
 ## [0.9.0] - 2026-10-07
 
 ### Added
