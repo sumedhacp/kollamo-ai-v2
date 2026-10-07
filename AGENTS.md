@@ -8,56 +8,168 @@ The platform ingests YouTube comment threads, classifies sentiment into five rig
 
 ---
 
-## Source Specification Hierarchy
+## Authoritative Rule Precedence System
 
-When determining WHAT Kollamo.ai is supposed to do, use the following authoritative 6-tier order:
+When determining engineering rules, development behavior, and product requirements for Kollamo.ai, the following strict 7-level precedence hierarchy governs:
 
-### SOURCE 1 — Provided Kollamo.ai Project Specification
-The provided Kollamo.ai technical/project specification is the primary product-requirements source.
-Use it for:
-- Product scope
-- Required functionality
-- Supported input types
-- Supported sentiment classes
-- Expected workflows
-- Specified technologies
-- Stated constraints
-- Stated project goals
-- Specified outputs
+```text
+Level 1: System / Platform Constraints (Highest)
+    ↓
+Level 2: Current Explicit User Instruction
+    ↓
+Level 3: More-Specific Repository Rules (Scoped)
+    ↓
+Level 4: Root Repository Rules (AGENTS.md)
+    ↓
+Level 5: Project Specification
+    ↓
+Level 6: Approved Architecture Decisions (ADRs)
+    ↓
+Level 7: Recommended Engineering Practices (Advisory)
+```
 
-Do not silently change requirements from the specification.
+### Level 1 — System / Platform Constraints
+**Highest priority.** These include host OS capabilities, fundamental execution constraints, security sandboxes, and immutable runtime boundaries. System and platform constraints cannot be overridden by project files, repository rules, or user project instructions.
 
-### SOURCE 2 — Existing Approved Repository Implementation
-If the specification does not explicitly answer an implementation question, inspect the existing repository.
-Existing implementation reveals decisions already made, established interfaces, existing architecture, data structures, completed phase outputs, and integration contracts.
-*Rule*: Do not automatically treat existing code as a product requirement. Existing implementation is evidence of an implementation decision, not necessarily proof that the specification requires that behavior.
+### Level 2 — Current Explicit User Instruction
+The user's latest explicit instruction takes precedence over older project preferences, prior decisions, and root documentation when there is an intentional or genuine conflict. Explicit instructions must never be silently ignored.
 
-### SOURCE 3 — AGENTS.md and Applicable Repository Rules
-Repository rules determine HOW the project should be developed (coding conventions, security rules, testing requirements, Git rules, directory conventions, implementation restrictions).
-*Rule*: Repository rules do not automatically override product requirements.
-- Product specification answers: **WHAT** should Kollamo.ai do?
-- Repository rules answer: **HOW** should Kollamo.ai be developed?
+### Level 3 — More-Specific Repository Rules
+A rule located closer to the affected code or module takes precedence over a broader rule.
+For example:
+```text
+root AGENTS.md
+    ↓
+frontend/AGENTS.md
+    ↓
+frontend/components/AGENTS.md
+```
+A more-specific applicable rule overrides a broader repository rule within its designated scope.
 
-### SOURCE 4 — Approved Architecture Decisions / ADRs
-Use approved ADRs (`docs/adr/`) when the specification leaves an architectural decision open (database architecture, service boundaries, API structure, model-serving strategy, asynchronous processing strategy).
-*Rule*: An ADR should not silently redefine a mandatory product requirement from the specification.
+### Level 4 — Root Repository Rules
+`AGENTS.md` defines the general, permanent engineering contract for Kollamo.ai across all modules. It governs:
+- System architecture & module boundaries
+- Coding conventions & style standards
+- Security requirements & credential management
+- Git workflow, branch strategy, and commit conventions
+- Testing expectations & test coverage tiers
+- Prohibited implementation shortcuts (e.g. no heuristic/fake sentiment)
+- Repository directory structures & file organization
+- Mandatory technology choices (Google MuRIL, FastAPI, React/Vite, PostgreSQL, Redis, Celery)
 
-### SOURCE 5 — Explicit Current User Instruction
-The user's current explicit instruction may intentionally change or clarify an earlier project decision.
-If it conflicts with an older project decision, follow the rule-precedence system documented here. Do not silently ignore the user's explicit request.
+*Distinction*: Root repository rules answer: **HOW** should Kollamo.ai be developed?
 
-### SOURCE 6 — Engineering Judgment
-Use general engineering knowledge only when the above sources do not provide an answer.
-*Rule*: When engineering judgment is used for a meaningful decision:
-- Document the assumption in `docs/spec-assumptions.md`.
-- Never present an engineering assumption as if it came from the original specification.
+### Level 5 — Project Specification
+The approved Kollamo.ai technical project specification defines the functional product scope. It determines:
+- Required product features
+- Supported input formats (YouTube URLs, Malayalam script, Manglish, English, code-mixed)
+- Expected workflows (real-time sandbox, batch ingestion, progress polling, report generation)
+- Required outputs (5 sentiment classes, approval metrics, script telemetry, PDF exports)
+- Specified core technologies
+- Stated constraints and boundaries
+
+*Distinction*: The project specification answers: **WHAT** should Kollamo.ai do?
+*Rule*: Do not interpret examples or targets as guaranteed implementation results.
+
+### Level 6 — Approved Architecture Decisions
+Approved Architectural Decision Records (`docs/adr/`) or equivalent documented decisions must be followed when the specification leaves an architectural decision open (e.g. database schema structure, service boundaries, Celery queue topologies, adapter contracts).
+*Rule*: An ADR cannot silently redefine or contradict a higher-priority mandatory product requirement from the specification.
+
+### Level 7 — Recommended Engineering Practices
+Useful suggestions and engineering enhancements that represent industry best practices, but are **not mandatory requirements**.
+Examples:
+- Docker Compose containerization
+- Playwright end-to-end automation
+- Additional CI/CD stages
+- Extensive debug logging
+- Storybook component isolation
+- Advanced Redis cache layers
+- Extra developer documentation
+- Additional developer tooling
+
+*Rule*: Recommendations must **never** be treated as phase blockers unless explicitly promoted to **REQUIRED** by a higher-priority rule.
+
+---
+
+## Conflict Resolution Framework
+
+If two instructions, rules, or documents conflict:
+1. **Apply the higher-priority level**: Strictly follow the 7-level precedence hierarchy above.
+2. **Apply specificity**: Prefer the more-specific applicable repository rule over a broader rule (Level 3 over Level 4).
+3. **Honor current user intent**: Prefer the latest explicit user instruction when it intentionally changes an earlier decision (Level 2).
+4. **Never ignore silently**: Identify the contradiction, document it, and resolve it using this hierarchy.
+5. **Document architectural decisions**: If an architectural ambiguity requires resolution, record the rationale in `docs/adr/` or `docs/spec-assumptions.md`.
+6. **No personal preference**: Engineering decisions must never be based on arbitrary personal preference or informal assumptions.
+
+---
+
+## Distinguishing REQUIRED from RECOMMENDED
+
+Every major project instruction, task, and feature must be classified into one of two categories:
+
+### 1. REQUIRED
+The implementation **must** satisfy this requirement before the relevant phase can be considered complete.
+**Mandatory criteria include:**
+- Explicitly specified project features and user workflows
+- Required API behavior and standardized response envelopes
+- Required security protections (input sanitization, rate limiting, SSRF guardrails)
+- Explicitly mandated core technologies (Google MuRIL, FastAPI, React, PostgreSQL, Redis, Celery)
+- Phase dependencies (must be satisfied before dependent phases can complete)
+- Genuine ML inference (strict prohibition of fake/heuristic sentiment dictionaries or if/else rules)
+- The 5 canonical sentiment classes (`positive`, `negative`, `neutral`, `mixed`, `unsupported`)
+- Server-side secret and credential isolation (`.env` only, never leaked to client)
+- Mandatory test suites passing (unit, integration, and type checks)
+- Explicit current user instructions
+
+### 2. RECOMMENDED
+Useful improvements and engineering practices that should be implemented when practical, but **must NOT block phase completion** unless explicitly promoted to REQUIRED.
+**Advisory items include:**
+- Docker and multi-container deployment stacks
+- Advanced CI/CD pipeline automation
+- Storybook component explorer
+- Additional performance micro-optimizations
+- Extra APM telemetry or distributed tracing
+- Advanced multi-tiered caching
+- Additional developer guides and runbooks
+- Optional UI animations or polish
+
+### 3. Important: Do Not Over-Implement
+- Do **NOT** turn every recommendation into a mandatory task.
+- If a task is not explicitly required by:
+  1. A higher-priority instruction (Level 1–2),
+  2. A repository rule (Level 3–4),
+  3. The project specification (Level 5), or
+  4. An approved architecture decision (Level 6),
+  it must be treated as **RECOMMENDED**.
+- Do not spend significant implementation time on optional infrastructure when required project functionality is incomplete.
+
+---
+
+## Project Specification Interpretation Taxonomy
+
+When reading the Kollamo.ai specification or project prompts, statements must be strictly classified into:
+
+### 1. REQUIRED PRODUCT BEHAVIOR
+The system **must** implement this feature or behavior. It is mandatory for phase completion.
+
+### 2. TARGET / GOAL
+Treat this as a quantitative objective that must be empirically measured rather than an automatic guarantee.
+*Rule*: If the specification mentions a target accuracy (e.g. 85%+ or 90%+), do **NOT** claim that accuracy unless rigorous testing on a held-out test split empirically demonstrates it. Real baseline measurements take precedence over unverified targets.
+
+### 3. EXAMPLE
+Examples illustrate expected behavior, sample payloads, or representative edge cases.
+*Rule*: Examples do **not** automatically create additional mandatory requirements or constrain general inputs.
+
+### 4. IMPLEMENTATION RECOMMENDATION
+A suggested implementation approach or library.
+*Rule*: A suggested approach may be replaced if an equivalent or superior implementation satisfies the actual requirement, unless the specification explicitly mandates the specific technology choice.
 
 ---
 
 ## Specification Access Fallback Procedure
 
 If the original Kollamo.ai specification is accessible:
-**USE IT AS THE PRIMARY PRODUCT SOURCE.** Do not replace it with general engineering knowledge.
+**USE IT AS THE PRIMARY PRODUCT SOURCE (Level 5).** Do not replace it with general engineering knowledge.
 
 If the specification is NOT accessible in the current repository/environment:
 **DO NOT invent missing requirements.** Follow this strict fallback order:
@@ -101,21 +213,6 @@ Instead, classify the item as:
 Unknown / Assumption / Recommendation
 ```
 and continue only if it is safe to do so. If a missing requirement blocks implementation, report it as a blocker instead of inventing a solution.
-
----
-
-## Specification Statement Classification
-
-When interpreting project statements, distinguish strictly between:
-
-1. **Required Product Behavior**:
-   The specification explicitly requires the feature or behavior. This is **mandatory**.
-2. **Target / Goal**:
-   The specification states a target or objective (e.g. accuracy or throughput targets). Do **not** represent a target as an already-achieved result without empirical experimental evaluation.
-3. **Example**:
-   An example illustrates expected behavior or sample data. An example does **not** automatically create additional product requirements.
-4. **Implementation Guidance**:
-   A suggested implementation approach may be followed when appropriate, but must **not** be treated as a mandatory product requirement unless explicitly required.
 
 
 ---
@@ -343,20 +440,29 @@ This maintains clean, unpolluted phase boundaries.
 
 ---
 
-## Phase Completion Gate & Recommended Work Principles
+## Phase Completion Gate: REQUIRED vs. RECOMMENDED Criteria
 
-### 1. Phase Completion Gate
-A phase may be marked **COMPLETE** only when all 7 criteria are satisfied:
-1. Its required work is finished.
-2. Its required tests and verification checks pass.
-3. Its required outputs and artifacts exist.
-4. Its documented dependency conditions are satisfied.
-5. No known blocking issue remains.
-6. The Git working state is reviewed and clean.
-7. `docs/phase-status.md` reflects the actual verified state.
+### 1. Phase Dependencies Are REQUIRED
+Phase dependencies are **mandatory**. They must **never** be treated as optional recommendations:
+- A later phase **cannot** be marked COMPLETE if its required dependency phase is incomplete.
+- The approved linear sequence (`Phase 0 → Phase 1 → ... → Phase 10`) and contract integration (`Phase 2 → Phase 3`) are strictly enforced.
+
+### 2. Phase Completion Gate Rule
+For every development phase, requirements are strictly separated:
+- **REQUIRED**: Items that must be completely implemented, tested, and verified before the phase can be signed off. A phase is COMPLETE when all REQUIRED items are satisfied.
+- **RECOMMENDED**: Desirable improvements that may remain open or deferred without blocking the start or completion of subsequent phases. Deferred recommendations must be recorded in `docs/phase-status.md` rather than silently forgotten.
+
+A phase may be marked **COMPLETE** only when all 7 gate criteria are verified:
+1. All REQUIRED work and features are finished.
+2. All REQUIRED tests, verification suites, and type-checks pass cleanly.
+3. All REQUIRED build outputs and documentation artifacts exist.
+4. All documented prerequisite dependency conditions are fully satisfied.
+5. No known blocking issues remain.
+6. The Git working state is reviewed and verified clean (`git diff --check`).
+7. `docs/phase-status.md` accurately reflects the verified state and records any deferred recommendations.
 
 *Rule*: Do **NOT** mark a phase complete merely because its code exists.
 
-### 2. Recommended Work Does Not Create Dependencies
-A recommended feature must **NOT** become a phase dependency unless explicitly promoted to **REQUIRED**.
+### 3. Recommended Work Does Not Create Blocking Dependencies
+A recommended feature must **NOT** become a phase dependency unless explicitly promoted to **REQUIRED** by a higher-priority rule.
 Optional enhancements (e.g. Storybook, advanced CI/CD stages, optional caching tiers, extra telemetry, additional documentation) must not block subsequent phases unless project rules explicitly classify them as required.

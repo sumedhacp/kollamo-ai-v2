@@ -12,10 +12,27 @@ This document records the specification access status, the authoritative fallbac
 
 ---
 
-## 2. Specification Access Fallback Hierarchy
+## 2. Rule Precedence Framework & Specification Fallback
 
-When determining product requirements (WHAT Kollamo.ai is supposed to do), the following authoritative fallback chain is strictly enforced:
+All engineering and product requirements operate under the 7-level precedence hierarchy codified in [AGENTS.md](../AGENTS.md):
+```text
+Level 1: System / Platform Constraints (Highest)
+    ↓
+Level 2: Current Explicit User Instruction
+    ↓
+Level 3: More-Specific Repository Rules (Scoped)
+    ↓
+Level 4: Root Repository Rules (AGENTS.md)
+    ↓
+Level 5: Project Specification
+    ↓
+Level 6: Approved Architecture Decisions (ADRs)
+    ↓
+Level 7: Recommended Engineering Practices (Advisory)
+```
 
+### Level 5 Specification Access Fallback Hierarchy:
+When determining product requirements (WHAT Kollamo.ai is supposed to do) while the physical specification file is external:
 ```text
 1. Existing repository implementation (decisions already made, established contracts, completed phase code)
    ↓
@@ -46,11 +63,20 @@ Statements from prompts, documentation, and issues must be classified according 
 | **Required Product Behavior** | Features, workflows, constraints, or formats explicitly mandated by project requirements. | **Mandatory**: Must be fully implemented, tested, and verified before phase sign-off. |
 | **Target / Goal** | Desired quantitative metrics, performance benchmarks, or aspirational objectives (e.g. accuracy targets). | **Empirical**: Must never be represented as achieved without experimental validation on held-out test splits. |
 | **Example** | Concrete sample inputs, mock payloads, or illustrative scenarios provided for clarity. | **Illustrative**: Does not create additional unstated requirements or constrain general inputs. |
-| **Implementation Guidance** | Suggested engineering patterns, recommended libraries, or architectural suggestions. | **Advisory**: Followed when suitable, but does not override required behavior or create blocking dependencies. |
+| **Implementation Recommendation** | Suggested engineering patterns, recommended libraries, or architectural suggestions. | **Advisory**: May be replaced if equivalent or better implementation satisfies requirement; does not block phase completion. |
 
 ---
 
-## 4. Verification Against Requirement Fabrication
+## 4. Distinguishing REQUIRED from RECOMMENDED
+
+- **REQUIRED**: Items that must be completely satisfied before a phase can be marked complete (mandated features, 5 sentiment classes, Google MuRIL inference, zero heuristic dictionaries, server-side secret management in `.env`, phase dependencies, mandatory tests).
+- **RECOMMENDED**: Desirable enhancements that should be implemented when practical, but **must NOT block phase completion** unless explicitly promoted to REQUIRED (Docker Compose, Storybook, advanced CI/CD, extra telemetry, advanced caching, extra documentation).
+- **Important: Do Not Over-Implement**: If a task is not explicitly required by higher-priority instructions, repository rules, specification, or approved ADRs, treat it as RECOMMENDED. Do not expend implementation effort on optional infrastructure when required features are pending.
+
+
+---
+
+## 5. Verification Against Requirement Fabrication
 
 To guarantee project integrity, the codebase has been verified against requirement fabrication. The following potential additions were evaluated and confirmed **NOT** to have been fabricated:
 
@@ -66,7 +92,7 @@ To guarantee project integrity, the codebase has been verified against requireme
 
 ---
 
-## 5. Phase Dependency Model & Contradiction Resolution
+## 6. Phase Dependency Model & Contradiction Resolution
 
 ### The Approved Phase Sequence:
 ```text
@@ -103,7 +129,7 @@ Phase 10 (Final Release & Docker Deployment)
 
 ---
 
-## 6. Treatment of Recommended Work
+## 7. Treatment of Recommended Work
 
 - Recommended features (e.g. Storybook, advanced multi-cluster orchestration, external APM agents, optional cache tiers) **do not create phase dependencies** unless explicitly promoted to **REQUIRED** by project rules.
 - Non-blocking recommended work that has been deferred:
@@ -113,7 +139,7 @@ Phase 10 (Final Release & Docker Deployment)
 
 ---
 
-## 7. Current Project State & Blockers
+## 8. Current Project State & Blockers
 
 - **Completed Phases**: Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 (All phases COMPLETE).
 - **Active Blockers**: **NONE** (0 blockers).

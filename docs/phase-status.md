@@ -30,13 +30,37 @@ PHASE 9: Testing + Security + Performance
 PHASE 10: Final Release
 ```
 
-### Dependency Contradiction Resolution (Phase 2 → Phase 3)
-- **Resolved Conflict**: Previous prompt instructions contained an ambiguity suggesting both that *"Phase 2 and Phase 3 are independent"* and that *"Phase 3 requires Phase 2"*.
-- **Authoritative Rule**: **`Phase 2 → Phase 3`** is the sole dependency relationship. Phase 2 establishes the ML/NLP foundation (data contracts, preprocessing pipelines, and Google MuRIL predictor). Phase 3 consumes and integrates with this foundation via FastAPI adapters without recreating or duplicating ML logic.
+### Rule Precedence Hierarchy (Governing Framework)
+All phase execution and engineering decisions follow the 7-tier precedence hierarchy codified in [AGENTS.md](../AGENTS.md):
+```text
+Level 1: System / Platform Constraints (Highest)
+    ↓
+Level 2: Current Explicit User Instruction
+    ↓
+Level 3: More-Specific Repository Rules (Scoped)
+    ↓
+Level 4: Root Repository Rules (AGENTS.md)
+    ↓
+Level 5: Project Specification
+    ↓
+Level 6: Approved Architecture Decisions (ADRs)
+    ↓
+Level 7: Recommended Engineering Practices (Advisory)
+```
+
+### Phase Dependencies Are REQUIRED (Mandatory)
+- Phase dependencies are **strictly mandatory**; they are **never** treated as recommendations.
+- A later phase cannot be marked **COMPLETE** if its required predecessor dependency is incomplete.
+- **Dependency Resolution (`Phase 2 → Phase 3`)**: Phase 2 establishes the ML/NLP foundation (preprocessing pipelines, Google MuRIL predictor contract, baseline metrics). Phase 3 consumes and integrates with this foundation via FastAPI adapters without recreating or duplicating ML logic. Claims of parallel independence are permanently eliminated.
+
+### Phase Completion Rule: REQUIRED vs. RECOMMENDED
+- **REQUIRED**: Must be fully satisfied, tested, and verified before the phase can be marked complete.
+- **RECOMMENDED**: Desirable engineering improvements that may remain open or deferred without blocking the next phase.
+- **Completion Principle**: A phase is marked **COMPLETE** when all REQUIRED items are verified. Deferred recommendations are formally tracked in the [Deferred Recommended Work](#deferred-recommended-work--current-blockers) registry.
 - **Specification Fallback**: The physical specification access fallback is active and recorded in [docs/spec-assumptions.md](./spec-assumptions.md). No unconfirmed requirements are fabricated.
-- **Recommended Work**: Recommended features (e.g. Storybook, advanced multi-cluster caching, optional telemetry) do not create phase dependencies unless explicitly promoted to required.
 
 ---
+
 
 ## Phase Overview Matrix
 
