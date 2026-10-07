@@ -1,15 +1,26 @@
 """YouTube Ingestion Route conforming to Phase 4 Contract."""
 
 from fastapi import APIRouter, Depends, status
-from app.schemas.common import ErrorResponse
-from app.schemas.youtube import (
-    YouTubeIngestRequest,
-    YouTubeIngestionResult,
-)
-from app.services.youtube.service import (
-    YouTubeIngestionService,
-    get_youtube_service,
-)
+try:
+    from app.schemas.common import ErrorResponse
+    from app.schemas.youtube import (
+        YouTubeIngestRequest,
+        YouTubeIngestionResult,
+    )
+    from app.services.youtube.service import (
+        YouTubeIngestionService,
+        get_youtube_service,
+    )
+except ImportError:
+    from backend.app.schemas.common import ErrorResponse
+    from backend.app.schemas.youtube import (
+        YouTubeIngestRequest,
+        YouTubeIngestionResult,
+    )
+    from backend.app.services.youtube.service import (
+        YouTubeIngestionService,
+        get_youtube_service,
+    )
 
 router = APIRouter(prefix="/youtube", tags=["YouTube"])
 

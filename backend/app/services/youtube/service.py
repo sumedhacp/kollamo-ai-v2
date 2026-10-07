@@ -3,14 +3,23 @@
 import time
 from datetime import datetime
 from typing import List, Literal, Optional, Union
-from app.core.logging import logger
-from app.schemas.youtube import (
-    YouTubeComment,
-    YouTubeIngestionResult,
-    YouTubeVideo,
-)
-from app.services.youtube.client import YouTubeClient
-from app.services.youtube.parser import extract_video_id
+try:
+    from app.core.logging import logger
+    from app.schemas.youtube import (
+        YouTubeComment,
+        YouTubeIngestionResult,
+        YouTubeVideo,
+    )
+except ImportError:
+    from backend.app.core.logging import logger
+    from backend.app.schemas.youtube import (
+        YouTubeComment,
+        YouTubeIngestionResult,
+        YouTubeVideo,
+    )
+
+from .client import YouTubeClient
+from .parser import extract_video_id
 
 
 class YouTubeIngestionService:

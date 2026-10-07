@@ -196,3 +196,51 @@ pytest backend/tests/test_health.py backend/tests/test_sentiment.py backend/test
 ```
 
 All 26 test cases execute synchronously in memory without requiring external dependencies (YouTube, Redis, Celery, or external database servers).
+
+---
+
+## 8. Phase 5 — Asynchronous Processing with Celery & Redis
+
+### Architecture & Workflows
+Phase 5 decouples long-running operations (YouTube comment collection and ML sentiment inference) from the FastAPI HTTP request cycle:
+1. **Client** issues `POST /api/v1/analysis/jobs` with `video_url`, `comment_limit` (50, 100, 250, 500, ALL), and `sort_by` (most_liked, newest, oldest).
+2. **FastAPI** generates a collision-resistant UUID `job_id`, records initial `QUEUED` state in `JobStateService`, enqueues `process_analysis_job` via Celery, and returns `202 Accepted` immediately.
+3. **Celery Worker** claims the job:
+   - Sets status to `PROCESSING` with progress stage `FETCHING_VIDEO`.
+   - Checks Phase 2 model readiness; if `MODEL_NOT_READY`, marks job `FAILED` without fake predictions.
+   - Executes Phase 4 `YouTubeIngestionService` for metadata and comments (stage `FETCHING_COMMENTS`).
+   - Runs Phase 2 `SentimentInferenceService` for each comment, updating mathematical progress stage `SENTIMENT_ANALYSIS` (`completed / total * 100%`).
+   - Marks job `COMPLETED` (stage `COMPLETED`, 100%) and records normalized results.
+4. **Client** polls `GET /api/v1/analysis/jobs/{job_id}` to retrieve current stage progress or final analysis results.
+
+### Local Development Services
+To run the full asynchronous stack locally:
+```bash
+# Terminal 1: Redis Broker (default: localhost:6379)
+docker run -d -p 6379:6379 redis:7-alpine
+# or native: redis-server
+
+# Terminal 2: Celery Worker (from backend/)
+celery -A app.workers.celery_app.celery_app worker --loglevel=INFO
+
+# Terminal 3: FastAPI Web Server (from backend/)
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Job Status Lifecycle
+- `QUEUED`: Job received and waiting in Celery queue; no comments processed yet.
+- `PROCESSING`: Worker actively collecting comments or running sentiment inference.
+- `COMPLETED`: Ingestion and inference finished; results available; error is null.
+- `FAILED`: Non-recoverable error occurred (e.g. `MODEL_NOT_READY`, `YOUTUBE_INVALID_VIDEO`, `YOUTUBE_COMMENTS_DISABLED`); error details provided.
+
+### Real vs Artificial Progress
+Progress indicators represent actual completed operations (`completed`, `total`, `percentage`):
+- `FETCHING_COMMENTS`: `completed=0, total=null, percentage=null` (total comment count unknown until pagination finishes).
+- `SENTIMENT_ANALYSIS`: `completed=N, total=Total, percentage=int(N / Total * 100)` strictly representing verified inference calls.
+- `COMPLETED`: `completed=Total, total=Total, percentage=100`.
+
+### Error Handling & Bounded Retries
+- Retries are strictly bounded (`max_retries=3`) with exponential backoff.
+- Transient network or broker drops are retried.
+- Non-retryable conditions (`MODEL_NOT_READY`, `YOUTUBE_INVALID_VIDEO`, `YOUTUBE_VIDEO_NOT_FOUND`, `YOUTUBE_COMMENTS_DISABLED`, `YOUTUBE_QUOTA_EXCEEDED`) immediately transition the job to `FAILED` without retrying.
+

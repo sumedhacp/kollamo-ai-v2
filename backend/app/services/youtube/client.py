@@ -4,10 +4,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 import httpx
 
-from app.core.config import settings
-from app.core.logging import logger
-from app.schemas.youtube import YouTubeComment, YouTubeVideo
-from app.services.youtube.errors import (
+try:
+    from app.core.config import settings
+    from app.core.logging import logger
+    from app.schemas.youtube import YouTubeComment, YouTubeVideo
+except ImportError:
+    from backend.app.core.config import settings
+    from backend.app.core.logging import logger
+    from backend.app.schemas.youtube import YouTubeComment, YouTubeVideo
+
+from .errors import (
     YouTubeAPIError,
     YouTubeCommentsDisabledError,
     YouTubeConfigError,

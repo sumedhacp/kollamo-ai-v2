@@ -1,7 +1,8 @@
 """Workers Package for Background Task Execution."""
 
-from backend.app.workers.celery_app import celery_app
-from backend.app.workers.tasks import (
+from .celery_app import celery_app
+from .tasks import (
+    process_analysis_job,
     process_youtube_analysis_job,
     run_analysis_pipeline,
     compute_summary_metrics,
@@ -9,6 +10,7 @@ from backend.app.workers.tasks import (
 
 __all__ = [
     "celery_app",
+    "process_analysis_job",
     "process_youtube_analysis_job",
     "run_analysis_pipeline",
     "compute_summary_metrics",

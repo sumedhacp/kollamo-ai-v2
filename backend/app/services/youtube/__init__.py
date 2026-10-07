@@ -1,12 +1,12 @@
 """YouTube Ingestion Service Package."""
 
-from app.services.youtube.client import YouTubeClient
-from app.services.youtube.parser import extract_video_id
-from app.services.youtube.service import (
+from .client import YouTubeClient
+from .parser import extract_video_id
+from .service import (
     YouTubeIngestionService,
     get_youtube_service,
 )
-from app.services.youtube.errors import (
+from .errors import (
     YouTubeError,
     YouTubeConfigError,
     YouTubeInvalidVideoError,

@@ -206,3 +206,254 @@ def process_youtube_analysis_job(self: Any, job_id_str: str) -> Dict[str, Any]:
     except Exception as exc:
         logger.error(f"Celery task {self.request.id} failed: {exc}")
         raise
+
+
+@celery_app.task(bind=True, name="process_analysis_job", max_retries=3)
+def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Celery background task orchestrating YouTube ingestion and ML sentiment analysis (Phase 5)."""
+    try:
+        from app.services.jobs import get_job_state_service
+        from app.services.sentiment import get_sentiment_service
+        from app.services.youtube.service import get_youtube_service
+        from app.services.youtube.errors import YouTubeError
+    except ImportError:
+        from backend.app.services.jobs import get_job_state_service
+        from backend.app.services.sentiment import get_sentiment_service
+        from backend.app.services.youtube.service import get_youtube_service
+        from backend.app.services.youtube.errors import YouTubeError
+
+    job_service = get_job_state_service()
+    logger.info(f"Worker claimed analysis job {job_id} for processing.")
+
+    # 1. Update job to PROCESSING with stage FETCHING_VIDEO
+    job_service.update_job(
+        job_id=job_id,
+        status="PROCESSING",
+        progress={
+            "stage": "FETCHING_VIDEO",
+            "completed": 0,
+            "total": None,
+            "percentage": None,
+        },
+    )
+
+    # 2. Check model readiness (Phase 2 boundary, Section 23/84)
+    sentiment_service = get_sentiment_service()
+    readiness = sentiment_service.get_model_readiness()
+    if readiness.status == "MODEL_NOT_READY":
+        logger.warning(f"Analysis job {job_id} failed: model is MODEL_NOT_READY")
+        job_service.update_job(
+            job_id=job_id,
+            status="FAILED",
+            error={
+                "code": "MODEL_NOT_READY",
+                "message": "The sentiment model is not ready.",
+                "details": None,
+            },
+            progress={
+                "stage": "SENTIMENT_ANALYSIS",
+                "completed": 0,
+                "total": None,
+                "percentage": None,
+            },
+        )
+        return {"job_id": job_id, "status": "FAILED", "error": "MODEL_NOT_READY"}
+    elif readiness.status == "MODEL_UNAVAILABLE":
+        logger.error(f"Analysis job {job_id} failed: model is MODEL_UNAVAILABLE")
+        job_service.update_job(
+            job_id=job_id,
+            status="FAILED",
+            error={
+                "code": "MODEL_UNAVAILABLE",
+                "message": "The sentiment model is currently unavailable.",
+                "details": None,
+            },
+            progress={
+                "stage": "SENTIMENT_ANALYSIS",
+                "completed": 0,
+                "total": None,
+                "percentage": None,
+            },
+        )
+        return {"job_id": job_id, "status": "FAILED", "error": "MODEL_UNAVAILABLE"}
+
+    # 3. YouTube Ingestion (Phase 4 boundary)
+    job_service.update_job(
+        job_id=job_id,
+        progress={
+            "stage": "FETCHING_COMMENTS",
+            "completed": 0,
+            "total": None,
+            "percentage": None,
+        },
+    )
+
+    try:
+        youtube_service = get_youtube_service()
+        ingestion_result = asyncio.run(
+            youtube_service.ingest(
+                video_url=request_data.get("video_url"),
+                comment_limit=request_data.get("comment_limit", 100),
+                sort_by=request_data.get("sort_by", "newest"),
+            )
+        )
+    except YouTubeError as yt_err:
+        logger.error(f"YouTube ingestion error for job {job_id}: {yt_err}")
+        job_service.update_job(
+            job_id=job_id,
+            status="FAILED",
+            error={
+                "code": yt_err.code,
+                "message": yt_err.message,
+                "details": yt_err.details,
+            },
+            progress={
+                "stage": "FETCHING_COMMENTS",
+                "completed": 0,
+                "total": None,
+                "percentage": None,
+            },
+        )
+        return {"job_id": job_id, "status": "FAILED", "error": yt_err.code}
+    except Exception as yt_exc:
+        # Transient network error -> deliberate bounded retry (Section 32/33)
+        if hasattr(self, "request") and getattr(self.request, "retries", 0) < self.max_retries:
+            logger.warning(
+                f"Transient error ingesting YouTube for job {job_id}, retrying ({self.request.retries + 1}/{self.max_retries}): {yt_exc}"
+            )
+            raise self.retry(exc=yt_exc, countdown=2 ** self.request.retries)
+        logger.error(f"YouTube ingestion failed permanently for job {job_id}: {yt_exc}")
+        job_service.update_job(
+            job_id=job_id,
+            status="FAILED",
+            error={
+                "code": "YOUTUBE_API_ERROR",
+                "message": f"Failed to ingest YouTube comments: {yt_exc}",
+                "details": None,
+            },
+        )
+        return {"job_id": job_id, "status": "FAILED", "error": "YOUTUBE_API_ERROR"}
+
+    # 4. Sentiment Inference (Phase 2 boundary)
+    comments = ingestion_result.comments
+    total_comments = len(comments)
+    comment_results = []
+
+    if total_comments == 0:
+        job_service.update_job(
+            job_id=job_id,
+            status="COMPLETED",
+            progress={
+                "stage": "COMPLETED",
+                "completed": 0,
+                "total": 0,
+                "percentage": 100,
+            },
+            result={
+                "video": ingestion_result.video.model_dump(),
+                "total_comments": 0,
+                "processed_comments": 0,
+                "comments": [],
+                "model_name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
+                "model_version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+            },
+        )
+        return {"job_id": job_id, "status": "COMPLETED"}
+
+    # Initial progress at start of sentiment analysis
+    job_service.update_job(
+        job_id=job_id,
+        progress={
+            "stage": "SENTIMENT_ANALYSIS",
+            "completed": 0,
+            "total": total_comments,
+            "percentage": 0,
+        },
+    )
+
+    for i, comment in enumerate(comments):
+        try:
+            pred = sentiment_service.ml_service.analyze(comment.text)
+            probs = (
+                pred.probabilities.model_dump()
+                if hasattr(pred.probabilities, "model_dump")
+                else pred.probabilities
+            )
+            comment_results.append({
+                "comment_id": comment.comment_id,
+                "text": comment.text,
+                "author_name": comment.author_name,
+                "like_count": comment.like_count,
+                "published_at": comment.published_at.isoformat() if comment.published_at else None,
+                "sentiment": pred.sentiment,
+                "confidence": pred.confidence,
+                "probabilities": probs,
+            })
+        except Exception as infer_err:
+            logger.error(f"Inference error on comment {comment.comment_id} for job {job_id}: {infer_err}")
+            job_service.update_job(
+                job_id=job_id,
+                status="FAILED",
+                error={
+                    "code": "INFERENCE_ERROR",
+                    "message": "Sentiment inference failed during comment processing.",
+                    "details": None,
+                },
+                progress={
+                    "stage": "SENTIMENT_ANALYSIS",
+                    "completed": i,
+                    "total": total_comments,
+                    "percentage": int((i / total_comments) * 100),
+                },
+            )
+            return {"job_id": job_id, "status": "FAILED", "error": "INFERENCE_ERROR"}
+
+        completed = i + 1
+        pct = int((completed / total_comments) * 100)
+        # Update progress periodically and at milestones
+        job_service.update_job(
+            job_id=job_id,
+            progress={
+                "stage": "SENTIMENT_ANALYSIS",
+                "completed": completed,
+                "total": total_comments,
+                "percentage": pct,
+            },
+        )
+        if (
+            hasattr(self, "update_state")
+            and getattr(self, "request", None)
+            and getattr(self.request, "id", None)
+        ):
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "stage": "SENTIMENT_ANALYSIS",
+                    "completed": completed,
+                    "total": total_comments,
+                    "percentage": pct,
+                },
+            )
+
+    # 5. Finalizing and Mark COMPLETED
+    job_service.update_job(
+        job_id=job_id,
+        status="COMPLETED",
+        progress={
+            "stage": "COMPLETED",
+            "completed": total_comments,
+            "total": total_comments,
+            "percentage": 100,
+        },
+        result={
+            "video": ingestion_result.video.model_dump(),
+            "total_comments": total_comments,
+            "processed_comments": total_comments,
+            "comments": comment_results,
+            "model_name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
+            "model_version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+        },
+    )
+    logger.info(f"Analysis job {job_id} successfully completed {total_comments} comments.")
+    return {"job_id": job_id, "status": "COMPLETED"}
+

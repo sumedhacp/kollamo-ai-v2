@@ -2,7 +2,7 @@
 
 import re
 from urllib.parse import parse_qs, urlparse
-from app.services.youtube.errors import YouTubeInvalidVideoError
+from .errors import YouTubeInvalidVideoError
 
 # Standard YouTube 11-character alphanumeric, underscore, hyphen ID pattern
 YOUTUBE_VIDEO_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]{11}$")

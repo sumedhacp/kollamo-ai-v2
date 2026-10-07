@@ -213,7 +213,10 @@ async def ml_generic_exception_handler(
     )
 
 
-from app.services.youtube.errors import YouTubeError
+try:
+    from app.services.youtube.errors import YouTubeError
+except ImportError:
+    from backend.app.services.youtube.errors import YouTubeError
 
 @app.exception_handler(YouTubeError)
 async def youtube_exception_handler(
@@ -234,6 +237,48 @@ async def youtube_exception_handler(
         status_code=exc.status_code,
         content=error_response.model_dump(),
     )
+
+
+try:
+    from app.services.jobs import JobNotFoundError, JobQueueUnavailableError
+except ImportError:
+    from backend.app.services.jobs import JobNotFoundError, JobQueueUnavailableError
+
+@app.exception_handler(JobNotFoundError)
+async def job_not_found_exception_handler(
+    request: Request, exc: JobNotFoundError
+) -> JSONResponse:
+    """Formats JobNotFoundError into RFC-compliant error envelope."""
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="JOB_NOT_FOUND",
+            message=str(exc),
+            details=None,
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content=error_response.model_dump(),
+    )
+
+
+@app.exception_handler(JobQueueUnavailableError)
+async def job_queue_unavailable_exception_handler(
+    request: Request, exc: JobQueueUnavailableError
+) -> JSONResponse:
+    """Formats JobQueueUnavailableError into RFC-compliant error envelope."""
+    error_response = ErrorResponse(
+        error=ErrorDetail(
+            code="JOB_QUEUE_UNAVAILABLE",
+            message=str(exc),
+            details=None,
+        )
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=error_response.model_dump(),
+    )
+
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -302,11 +347,18 @@ async def root() -> dict:
 # Mount Health Endpoint Router (GET /health)
 from backend.app.api.routes.health import router as health_router
 from backend.app.api.routes.sentiment import router as v1_sentiment_router
-from app.api.routes.youtube import router as v1_youtube_router
+
+try:
+    from app.api.routes.youtube import router as v1_youtube_router
+    from app.api.routes.analysis import router as v1_analysis_router
+except ImportError:
+    from backend.app.api.routes.youtube import router as v1_youtube_router
+    from backend.app.api.routes.analysis import router as v1_analysis_router
 
 app.include_router(health_router)
 app.include_router(v1_sentiment_router, prefix="/api/v1")
 app.include_router(v1_youtube_router, prefix="/api/v1")
+app.include_router(v1_analysis_router, prefix="/api/v1")
 
 # Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

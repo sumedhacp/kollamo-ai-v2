@@ -4,7 +4,10 @@ import logging
 import sys
 import re
 from typing import Any
-from backend.app.core.config import settings
+try:
+    from app.core.config import settings
+except ImportError:
+    from backend.app.core.config import settings
 
 # Sensitive parameter patterns to sanitize from logs
 SENSITIVE_PATTERNS = [
