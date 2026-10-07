@@ -211,7 +211,7 @@ Next phase:
 - **Commit**: `feat(ml): apply MuRIL 5-class checkpoint strategy and training requirements`
 - **Tag**: `v0.3.0`
 - **Dependencies**: Phase 1 (COMPLETE)
-- **Tests**: 40 unit/contract tests passing across 9 test suites in `ml/tests/` (loader, preprocessing, inference, muril, baseline, exceptions, taxonomy, metrics, data_loader), 8 backend health & sentiment integration tests passing with 0 regressions
+- **Tests**: 49 unit/contract tests passing across 11 test suites in `ml/tests/` (loader, preprocessing, inference, muril, baseline, exceptions, taxonomy, metrics, data_loader, labels, training_contract), 8 backend health & sentiment integration tests passing with 0 regressions, Vite production build passing in 11.13s
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
 
