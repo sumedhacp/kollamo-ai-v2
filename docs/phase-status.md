@@ -68,13 +68,18 @@ Level 7: Recommended Engineering Practices (Advisory)
 - **Completion Principle**: A phase is marked **COMPLETE** when all REQUIRED items are verified. Deferred recommendations are formally tracked in the [Deferred Recommended Work](#deferred-recommended-work--current-blockers) registry.
 - **Specification Fallback**: The physical specification access fallback is active and recorded in [docs/spec-assumptions.md](./spec-assumptions.md). No unconfirmed requirements are fabricated.
 
-### Phase Execution Lifecycle & Stop Condition
+### Phase Execution Lifecycle & Dual Completion Rule
 Every phase must execute strictly through this sequential model:
 ```text
-INSPECT → PLAN → IMPLEMENT → VERIFY → DOCUMENT → COMMIT → STOP
+IMPLEMENT → TEST → REVIEW GIT DIFF → COMMIT → PUSH → VERIFY REMOTE → UPDATE PHASE STATUS → STOP
 ```
 - **Principle**: Prefer `SMALL CORRECT CHANGE` over `LARGE "COMPLETE" IMPLEMENTATION`.
-- **Stop Condition**: Upon completing the phase, output the formal completion report and **STOP**. Do not proceed to the next phase without explicit instruction.
+- **Dual Completion Criteria**:
+  - **Local Completion**: The implementation works, passes tests, and is committed locally.
+  - **Remote Completion**: The commit has been successfully pushed and verified on GitHub.
+  - A phase is considered fully complete only when both Local and Remote completion are satisfied.
+- **Stop Condition**: Upon completing and pushing the phase, output the formal completion report and **STOP**. Do not proceed to the next phase without explicit instruction.
+
 
 ### Standard Phase Completion Report Template
 ```text

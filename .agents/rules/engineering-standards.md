@@ -31,9 +31,10 @@
 ## Development Execution Protocol
 All development phases must strictly follow the execution lifecycle codified in [AGENTS.md](../../AGENTS.md):
 ```text
-INSPECT → PLAN → IMPLEMENT → VERIFY → DOCUMENT → COMMIT → STOP
+IMPLEMENT → TEST → REVIEW GIT DIFF → COMMIT → PUSH → VERIFY REMOTE → UPDATE PHASE STATUS → STOP
 ```
 - **Principle**: Prefer `SMALL CORRECT CHANGE` over `LARGE "COMPLETE" IMPLEMENTATION`.
+- **Dual Completion**: Local completion (tested and committed locally) and Remote completion (pushed and verified on GitHub) are both required.
 - **Boundaries**: Strictly respect future-phase boundaries; never implement downstream features early.
 - **Mock Data**: Isolate mock data (`mock/`, `fixtures/`); never let mock data become production sources.
 - **Stop Condition**: Always stop after completing the requested phase. Never auto-advance.

@@ -481,21 +481,24 @@ Every development phase across the Kollamo.ai lifecycle must adhere to this exec
 ### 2. Phase Execution Lifecycle
 Every development phase must strictly execute in this sequential order:
 ```text
-INSPECT
-   ↓
- PLAN
-   ↓
 IMPLEMENT
    ↓
- VERIFY
+  TEST
    ↓
-DOCUMENT
+REVIEW GIT DIFF
    ↓
  COMMIT
+   ↓
+  PUSH
+   ↓
+VERIFY REMOTE
+   ↓
+UPDATE PHASE STATUS
    ↓
   STOP
 ```
 *Strict Rule*: Do **NOT** automatically continue into the next phase.
+
 
 ### 3. Step-by-Step Lifecycle Procedures
 
@@ -555,9 +558,20 @@ During code implementation:
 - Verify: only intended files changed, no secrets committed, no generated artifacts tracked, all tests pass, documentation is current.
 - Commit using Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`). Never use meaningless messages (`update`, `changes`, `done`, `work`).
 
-#### Step 7: STOP (Phase Termination)
+#### Step 7: PUSH & VERIFY REMOTE (GitHub Synchronization)
+- Check active branch and remote: `git branch --show-current`, `git remote -v`.
+- Push the commit to the configured GitHub remote (`origin`).
+- Verify remote synchronization: confirm the latest local commit exists on the remote upstream branch.
+- **Dual Completion Criteria**:
+  - **Local completion**: The implementation works and is committed locally.
+  - **Remote completion**: The commit has been successfully pushed and verified on GitHub.
+  - A phase is considered fully complete only after both Local and Remote completion are satisfied.
+
+#### Step 8: UPDATE PHASE STATUS & STOP (Phase Termination)
+- Update `docs/phase-status.md` with verified local commit SHA and remote push status.
 - Output the formal Phase Completion Report.
 - **STOP immediately**. Wait for explicit user instructions before beginning any subsequent phase.
+
 
 ---
 
