@@ -76,8 +76,45 @@ The Phase 2 ML engine is structured into modular Python packages:
 - `ml.data.dataset_loader`: Loads corpus splits with stratification, asserts Zero Data Leakage between splits, and computes balanced class weights.
 - `ml.models.baseline_model`: Classical TF-IDF (1,2 n-grams) + Logistic Regression benchmark.
 - `ml.models.muril_classifier`: Google MuRIL transformer backbone with 768-dim pooled representations, LayerNorm, Dropout (0.2), and 5-class linear head.
+- `ml.models.loader`: Decoupled `ModelLoader` managing weights loading, tokenizer caching, device placement, and predictor lifecycle.
+- `ml.exceptions`: Structured exception hierarchy (`ModelLoadingError`, `InferenceError`, `PreprocessingError`, `ConfigurationError`, `UnsupportedInputError`).
 - `ml.training.trainer`: PyTorch training loop with AdamW, linear warmup scheduler, and model checkpointing.
 - `ml.evaluation.metrics`: Computes Accuracy, Macro/Weighted F1, Per-class F1, and 5x5 confusion matrices.
 - `ml.evaluation.error_analyzer`: Evaluates model performance across 8 distinct linguistic challenge categories.
 - `ml.inference.predictor`: Production-ready prediction wrapper mapping raw comment text to structured sentiment distributions.
+
+---
+
+## 6. Model Loading & Lifecycle Abstraction (`ModelLoader`)
+
+To prevent scatter of Hugging Face / PyTorch instantiation logic, `ModelLoader` encapsulates model initialization:
+```python
+loader = ModelLoader(
+    model_name="google/muril-base-cased",
+    weights_path="ml/models/saved_weights/muril_classifier.pt",
+    device="cpu", # or 'cuda', 'auto'
+    num_classes=5,
+)
+predictor = loader.get_predictor()
+```
+- **Caching**: Reuses initialized tokenizer and neural weights across inference calls.
+- **Device Management**: Safely falls back to CPU if CUDA is requested but unavailable.
+- **Lifecycle Control**: Supports explicit `unload()` to reclaim system and GPU memory.
+
+---
+
+## 7. Unsupported-Input Policy
+
+Kollamo.ai enforces an explicit policy for unsupported input:
+1. **Empty / Null / Non-String Text**: Returns `sentiment="unsupported"`, `confidence=1.0`, and probability 1.0 assigned strictly to the `unsupported` class.
+2. **Pure Noise / Non-Linguistic Content**: Comments reduced to empty strings after URL/mention/control character sanitization are mapped to `sentiment="unsupported"`, preserving the raw text for auditability.
+3. **Absence of Heuristics**: The system **never** applies hardcoded keyword dictionaries, emoji lookups, or if/else heuristic rules to fabricate sentiment polarity.
+
+---
+
+## 8. Current Limitations & Phase Boundaries
+
+- **Target Accuracy Disclaimer**: Production-grade accuracy cannot be claimed without training on the full human-annotated Malayalam benchmark corpus. The 33.3% empirical baseline is documented in `docs/evaluation.md`.
+- **Model Checkpoints**: Full fine-tuned checkpoints are loaded dynamically via `ModelLoader`. If weights are absent, a fallback baseline is fitted in-memory for testing.
+- **Phase Boundaries**: Real YouTube scraping (Phase 4), Celery/Redis workers (Phase 5), and frontend-backend wiring (Phase 6) remain decoupled and deferred.
 

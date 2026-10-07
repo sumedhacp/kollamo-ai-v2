@@ -66,19 +66,24 @@ def sanitize_control_characters(text: str) -> str:
     return "".join(cleaned_chars)
 
 
-def clean_text(text: str) -> str:
+def clean_text(text: str, max_chars: int = None) -> str:
     """Full preprocessing pipeline for Malayalam and code-mixed comments.
 
     Pipeline:
-    1. Unicode NFKC normalization
-    2. URL removal
-    3. User mention removal
-    4. Control character sanitization
-    5. Repeated character normalization (max 2)
-    6. Whitespace collapse
+    1. Null / type check
+    2. Optional length capping
+    3. Unicode NFKC normalization
+    4. URL removal
+    5. User mention removal
+    6. Control character sanitization
+    7. Repeated character normalization (max 2)
+    8. Whitespace collapse
     """
     if not text or not isinstance(text, str):
         return ""
+
+    if max_chars is not None and len(text) > max_chars:
+        text = text[:max_chars]
 
     text = normalize_unicode(text)
     text = remove_urls(text)

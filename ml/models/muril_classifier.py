@@ -124,3 +124,44 @@ class MurilSentimentClassifier(nn.Module):
         """Loads state dictionary weights."""
         state_dict = torch.load(weights_path, map_location=device)
         self.load_state_dict(state_dict)
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name_or_path: str,
+        num_classes: int = 5,
+        dropout_prob: float = 0.2,
+        device: str = "cpu",
+    ) -> "MurilSentimentClassifier":
+        """Factory method to load classifier from directory, checkpoint file, or pretrained backbone."""
+        path = Path(model_name_or_path)
+        weights_file = None
+
+        if path.is_file() and path.suffix in (".pt", ".bin"):
+            weights_file = path
+            base_model_name = "google/muril-base-cased"
+        elif path.is_dir():
+            for candidate in ("muril_classifier.pt", "pytorch_model.bin", "model.pt"):
+                if (path / candidate).exists():
+                    weights_file = path / candidate
+                    break
+            base_model_name = str(path) if (path / "config.json").exists() else "google/muril-base-cased"
+        else:
+            base_model_name = model_name_or_path
+
+        model = cls(
+            model_name=base_model_name,
+            num_classes=num_classes,
+            dropout_prob=dropout_prob,
+            pretrained=True if not weights_file else False,
+        )
+
+        if weights_file and weights_file.exists():
+            model.load_weights(str(weights_file), device=device)
+
+        model.to(device)
+        return model
+
+
+# Authoritative alias for casing consistency across repository
+MuRILSentimentClassifier = MurilSentimentClassifier

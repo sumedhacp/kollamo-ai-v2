@@ -1,0 +1,35 @@
+"""Custom Exceptions for Kollamo.ai ML/NLP Pipeline."""
+
+
+class KollamoMLException(Exception):
+    """Base exception for all Kollamo.ai ML pipeline errors."""
+
+    def __init__(self, message: str, details: dict = None):
+        super().__init__(message)
+        self.message = message
+        self.details = details or {}
+
+
+class ModelLoadingError(KollamoMLException):
+    """Raised when model weights, architecture, or tokenizer fails to load."""
+    pass
+
+
+class InferenceError(KollamoMLException):
+    """Raised when an unrecoverable error occurs during model forward pass."""
+    pass
+
+
+class PreprocessingError(KollamoMLException):
+    """Raised when text sanitization, normalization, or script analysis fails."""
+    pass
+
+
+class ConfigurationError(KollamoMLException):
+    """Raised when ML configuration or hyperparameters are invalid or missing."""
+    pass
+
+
+class UnsupportedInputError(KollamoMLException):
+    """Raised when input text cannot be processed or represents unsupported content."""
+    pass
