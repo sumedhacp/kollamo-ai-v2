@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     ML_DEVICE: str = "cpu"
     MURIL_MODEL_PATH: str = "google/muril-base-cased"
     FINETUNED_WEIGHTS_PATH: str = "ml/models/saved_weights/baseline_tfidf.joblib"
+    MODEL_NAME: str = "kollamo-muril-5class"
+    MODEL_VERSION: str = "v1"
     BATCH_SIZE: int = 32
     MAX_COMMENT_LENGTH: int = 5000
 

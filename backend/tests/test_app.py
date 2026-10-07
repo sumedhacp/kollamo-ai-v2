@@ -18,14 +18,11 @@ async def test_app_root_endpoint(async_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_app_minimal_health_endpoint(async_client: AsyncClient) -> None:
-    """Verifies that the minimal GET /health endpoint returns 200 without DB/Redis dependencies."""
+    """Verifies that GET /health exactly satisfies Section 21 HealthResponse {"status": "ok"}."""
     response = await async_client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
-    assert data["project"] == "Kollamo.ai"
-    assert "version" in data
-    assert "environment" in data
+    assert data == {"status": "ok"}
 
 
 @pytest.mark.asyncio
@@ -39,9 +36,9 @@ async def test_app_openapi_specification(async_client: AsyncClient) -> None:
     assert "paths" in data
 
     paths = data["paths"]
-    # Check that root health, API health, and sentiment endpoints are documented
+    # Check that root health and versioned sentiment endpoints are documented
     assert "/health" in paths
-    assert "/api/sentiment" in paths or "/api/v1/sentiment" in paths
+    assert "/api/v1/sentiment" in paths
 
 
 @pytest.mark.asyncio

@@ -1,17 +1,90 @@
 """Sentiment Analysis Request and Response Schemas."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 
 
-class SentimentRequest(BaseModel):
-    """Request payload for single-comment sentiment classification."""
+class ModelInfo(BaseModel):
+    """Metadata regarding the inference model."""
+
+    name: str = Field(..., description="Model architecture or identifier")
+    version: str = Field(..., description="Model version tag")
+
+
+class ProcessingInfo(BaseModel):
+    """Execution timing and processing metadata."""
+
+    processing_time_ms: float = Field(..., description="Measured processing time in milliseconds")
+
+
+class SentimentProbabilities(BaseModel):
+    """Normalized probability distribution over the 5 discrete sentiment classes."""
+
+    Positive: float = Field(..., ge=0.0, le=1.0)
+    Negative: float = Field(..., ge=0.0, le=1.0)
+    Neutral: float = Field(..., ge=0.0, le=1.0)
+    Mixed: float = Field(..., ge=0.0, le=1.0)
+    Unsupported: float = Field(..., ge=0.0, le=1.0)
+
+
+class SentimentAnalyzeRequest(BaseModel):
+    """Request payload for POST /api/v1/sentiment."""
 
     text: str = Field(
         ...,
-        min_length=1,
-        max_length=5000,
-        description="The social media comment to analyze (max 5000 characters).",
+        description="The social media comment to analyze.",
+    )
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v: Any) -> str:
+        if v is None:
+            raise ValueError("Comment text cannot be null.")
+        if not isinstance(v, str):
+            raise ValueError("Comment text must be a string.")
+        if not v.strip():
+            raise ValueError("Comment text cannot be empty or contain only whitespace.")
+        if len(v) > 5000:
+            raise ValueError("Comment text exceeds maximum length of 5000 characters.")
+        return v
+
+
+class SentimentAnalyzeResponse(BaseModel):
+    """Authoritative response payload for POST /api/v1/sentiment."""
+
+    original_text: str = Field(..., description="Original raw text submitted for analysis")
+    sentiment: Literal[
+        "Positive",
+        "Negative",
+        "Neutral",
+        "Mixed",
+        "Unsupported",
+    ] = Field(..., description="Primary sentiment classification label")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Model confidence score for the top class")
+    probabilities: SentimentProbabilities = Field(
+        ..., description="Full probability distribution over the 5 sentiment classes"
+    )
+    model: ModelInfo = Field(..., description="Model information")
+    processing: ProcessingInfo = Field(..., description="Processing telemetry")
+
+
+# Aliases and Legacy Compatibility Schemas
+class ClassProbabilities(BaseModel):
+    """Normalized probability distribution over the 5 discrete sentiment classes (legacy)."""
+
+    positive: float = Field(..., ge=0.0, le=1.0)
+    negative: float = Field(..., ge=0.0, le=1.0)
+    neutral: float = Field(..., ge=0.0, le=1.0)
+    mixed: float = Field(..., ge=0.0, le=1.0)
+    unsupported: float = Field(..., ge=0.0, le=1.0)
+
+
+class SentimentRequest(BaseModel):
+    """Request payload for single-comment sentiment classification (legacy compatible)."""
+
+    text: str = Field(
+        ...,
+        description="The social media comment to analyze.",
     )
     translate: bool = Field(
         default=True,
@@ -27,21 +100,13 @@ class SentimentRequest(BaseModel):
             raise ValueError("Comment text must be a string.")
         if not v.strip():
             raise ValueError("Comment text cannot be empty or contain only whitespace.")
+        if len(v) > 5000:
+            raise ValueError("Comment text exceeds maximum allowed size.")
         return v
 
 
-class ClassProbabilities(BaseModel):
-    """Normalized probability distribution over the 5 discrete sentiment classes."""
-
-    positive: float = Field(..., ge=0.0, le=1.0)
-    negative: float = Field(..., ge=0.0, le=1.0)
-    neutral: float = Field(..., ge=0.0, le=1.0)
-    mixed: float = Field(..., ge=0.0, le=1.0)
-    unsupported: float = Field(..., ge=0.0, le=1.0)
-
-
 class SentimentResponse(BaseModel):
-    """Response payload for single-comment sentiment classification."""
+    """Response payload for single-comment sentiment classification (legacy compatible)."""
 
     original_text: str = Field(..., description="Original raw text submitted for analysis")
     detected_language: str = Field(..., description="Detected language code (ml, en, ml-en, etc.)")

@@ -1,11 +1,17 @@
 """Sentiment Analysis Service integrating ML Inference Predictor via Phase 2 ModelLoader."""
 
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.schemas.sentiment import (
     ClassProbabilities,
+    ModelInfo,
+    ProcessingInfo,
+    SentimentAnalyzeRequest,
+    SentimentAnalyzeResponse,
+    SentimentProbabilities,
     SentimentRequest,
     SentimentResponse,
 )
@@ -100,8 +106,10 @@ class SentimentService:
         """Returns True if the ML inference engine is initialized and ready."""
         return self._is_ready and self.predictor is not None
 
-    def analyze_comment(self, request: SentimentRequest) -> SentimentResponse:
-        """Performs non-heuristic sentiment classification on a single comment."""
+    def analyze_v1(self, request: SentimentAnalyzeRequest) -> SentimentAnalyzeResponse:
+        """Performs sentiment analysis adhering strictly to the Section 10/15 Phase 3 contract."""
+        start_time = time.perf_counter()
+
         if not self.is_ready():
             if isinstance(self._load_error, ModelNotTrainedError):
                 raise self._load_error
@@ -111,13 +119,61 @@ class SentimentService:
                 raise ModelLoadingError(f"Model engine failed to load: {self._load_error}")
             else:
                 raise ModelNotTrainedError(
-                    "Trained Kollamo checkpoint not found. Status: MODEL_NOT_TRAINED",
-                    details={"status": "MODEL_NOT_TRAINED"},
+                    "The Kollamo sentiment model is not available for inference.",
+                    details=None,
                 )
 
         prediction = self.predictor.predict_single(request.text)
 
-        # Handle translation using translation service abstraction safely if requested
+        raw_sentiment = prediction["sentiment"]
+        capitalized_sentiment = raw_sentiment.capitalize()
+        if capitalized_sentiment not in ("Positive", "Negative", "Neutral", "Mixed", "Unsupported"):
+            capitalized_sentiment = "Unsupported"
+
+        raw_probs = prediction["class_probabilities"]
+        probs_map = {
+            "Positive": float(raw_probs.get("positive", raw_probs.get("Positive", 0.0))),
+            "Negative": float(raw_probs.get("negative", raw_probs.get("Negative", 0.0))),
+            "Neutral": float(raw_probs.get("neutral", raw_probs.get("Neutral", 0.0))),
+            "Mixed": float(raw_probs.get("mixed", raw_probs.get("Mixed", 0.0))),
+            "Unsupported": float(raw_probs.get("unsupported", raw_probs.get("Unsupported", 0.0))),
+        }
+        total_p = sum(probs_map.values())
+        if total_p > 0:
+            probs_map = {k: round(v / total_p, 4) for k, v in probs_map.items()}
+
+        confidence = round(float(probs_map.get(capitalized_sentiment, prediction.get("confidence", 0.0))), 4)
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        return SentimentAnalyzeResponse(
+            original_text=request.text,
+            sentiment=capitalized_sentiment,
+            confidence=confidence,
+            probabilities=SentimentProbabilities(**probs_map),
+            model=ModelInfo(
+                name=getattr(settings, "MODEL_NAME", "kollamo-muril-5class"),
+                version=getattr(settings, "MODEL_VERSION", "v1"),
+            ),
+            processing=ProcessingInfo(processing_time_ms=elapsed_ms),
+        )
+
+    def analyze_comment(self, request: SentimentRequest) -> SentimentResponse:
+        """Performs non-heuristic sentiment classification (legacy contract)."""
+        if not self.is_ready():
+            if isinstance(self._load_error, ModelNotTrainedError):
+                raise self._load_error
+            elif isinstance(self._load_error, ModelLoadingError):
+                raise self._load_error
+            elif self._load_error:
+                raise ModelLoadingError(f"Model engine failed to load: {self._load_error}")
+            else:
+                raise ModelNotTrainedError(
+                    "The Kollamo sentiment model is not available for inference.",
+                    details=None,
+                )
+
+        prediction = self.predictor.predict_single(request.text)
+
         translated_text: Optional[str] = None
         translation_status = "not_requested"
 

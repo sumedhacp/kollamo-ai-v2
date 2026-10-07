@@ -36,9 +36,9 @@ backend/
 │   ├── api/                 # Endpoint controllers and routing
 │   │   ├── __init__.py
 │   │   ├── router.py        # Centralized router aggregation
-│   │   ├── health.py        # Service readiness health checks
-│   │   ├── sentiment.py     # Single-comment sentiment endpoints (/sentiment, /v1/sentiment)
-│   │   └── routes/          # Module route compatibility layer
+│   │   ├── health.py        # Subsystem readiness health checks (/api/health)
+│   │   ├── sentiment.py     # Legacy sentiment endpoint (/api/sentiment)
+│   │   └── routes/          # Route module layout
 │   │       ├── __init__.py
 │   │       ├── health.py
 │   │       └── sentiment.py
@@ -51,10 +51,10 @@ backend/
 │   │
 │   ├── schemas/             # Pydantic v2 request/response contracts
 │   │   ├── __init__.py
-│   │   ├── common.py        # Standardized ErrorResponse, ErrorDetail, HealthStatus
+│   │   ├── common.py        # ErrorDetail, ErrorResponse, HealthResponse {"status": "ok"}
 │   │   ├── error.py         # Error schema aliases
-│   │   ├── health.py        # Health responses
-│   │   └── sentiment.py     # SentimentRequest, SentimentResponse, ClassProbabilities
+│   │   ├── health.py        # Subsystem health responses
+│   │   └── sentiment.py     # SentimentAnalyzeRequest, SentimentAnalyzeResponse
 │   │
 │   └── services/            # Application service orchestration
 │       ├── __init__.py
@@ -79,14 +79,11 @@ A lightweight, non-blocking liveness probe indicating that the FastAPI process i
 - **Response**: `200 OK`
   ```json
   {
-    "status": "healthy",
-    "project": "Kollamo.ai",
-    "version": "0.4.0",
-    "environment": "development"
+    "status": "ok"
   }
   ```
 
-#### Readiness Health: `GET /api/health` and `GET /api/v1/health`
+#### Readiness Health: `GET /api/health`
 Inspects subsystem connectivity (PostgreSQL, Redis broker, ML engine).
 - **Response**: `200 OK`
   ```json
@@ -106,61 +103,46 @@ Inspects subsystem connectivity (PostgreSQL, Redis broker, ML engine).
 
 ### Sentiment Analysis Endpoints
 
-#### `POST /api/v1/sentiment` & `POST /api/sentiment`
+#### Primary Versioned Endpoint: `POST /api/v1/sentiment`
 Synchronously classifies a single Malayalam, Manglish, English, or code-mixed social media comment.
 
-#### Request Contract (`SentimentRequest`)
+#### Request Contract (`SentimentAnalyzeRequest`)
 ```json
 {
-  "text": "ഈ സിനിമ വളരെ മികച്ചതാണ്, അഭിനയം ഗംഭീരം!",
-  "translate": false
+  "text": "ഇത് വളരെ നല്ല സിനിമയാണ്"
 }
 ```
-- `text` (string, required): 1 to 5000 characters. Rejects empty strings and whitespace-only payloads with `422 Unprocessable Entity`.
-- `translate` (boolean, optional, default: `true`): Flag requesting English translation for regional/code-mixed comments.
+- `text` (string, required): Cannot be null, missing, empty, or whitespace-only. Maximum 5000 characters.
 
-#### Response Contract (`SentimentResponse`)
+#### Response Contract (`SentimentAnalyzeResponse`)
 ```json
 {
-  "original_text": "ഈ സിനിമ വളരെ മികച്ചതാണ്, അഭിനയം ഗംഭീരം!",
-  "detected_language": "ml",
-  "detected_script": "Malayalam",
-  "sentiment": "positive",
-  "confidence": 0.942,
-  "class_probabilities": {
-    "positive": 0.942,
-    "negative": 0.015,
-    "neutral": 0.021,
-    "mixed": 0.018,
-    "unsupported": 0.004
-  },
+  "original_text": "ഇത് വളരെ നല്ല സിനിമയാണ്",
+  "sentiment": "Positive",
+  "confidence": 0.96,
   "probabilities": {
-    "positive": 0.942,
-    "negative": 0.015,
-    "neutral": 0.021,
-    "mixed": 0.018,
-    "unsupported": 0.004
+    "Positive": 0.96,
+    "Negative": 0.01,
+    "Neutral": 0.01,
+    "Mixed": 0.01,
+    "Unsupported": 0.01
   },
-  "translation_status": "not_requested",
-  "translated_text": null,
-  "model_metadata": {
-    "architecture": "BaselineClassifier",
-    "device": "cpu"
+  "model": {
+    "name": "kollamo-muril-5class",
+    "version": "v1"
   },
-  "processing_metadata": {
-    "raw_length": 42,
-    "cleaned_length": 42,
-    "inference_time_ms": 1.25
+  "processing": {
+    "processing_time_ms": 42.0
   }
 }
 ```
 
-The five discrete sentiment classes are strictly:
-1. `positive` / `Positive`
-2. `negative` / `Negative`
-3. `neutral` / `Neutral`
-4. `mixed` / `Mixed`
-5. `unsupported` / `Unsupported`
+The five discrete sentiment classes and probability keys are strictly:
+1. `Positive`
+2. `Negative`
+3. `Neutral`
+4. `Mixed`
+5. `Unsupported`
 
 ---
 
@@ -175,30 +157,42 @@ Kollamo.ai enforces a strict **Zero Fabricated Sentiment** policy:
    {
      "error": {
        "code": "MODEL_NOT_TRAINED",
-       "message": "Trained sentiment model checkpoint is not available for inference.",
-       "details": {
-         "status": "MODEL_NOT_TRAINED"
-       }
+       "message": "The Kollamo sentiment model is not available for inference.",
+       "details": null
      }
    }
    ```
 
 ---
 
-## 5. Security & Error Handling
+## 5. Standardized Error Handling & Status Codes
+
+| Condition | Code | HTTP Status | Description |
+| :--- | :--- | :--- | :--- |
+| Valid Request & Inference | - | `200 OK` | Successful sentiment classification |
+| Invalid Syntax / Semantics | `INVALID_REQUEST` | `400 Bad Request` | Request violates application rules |
+| Validation Failure | `VALIDATION_ERROR` | `422 Unprocessable Entity` | Pydantic validation failed |
+| Untrained Checkpoint | `MODEL_NOT_TRAINED` | `503 Service Unavailable` | Model requires fine-tuning |
+| Model Initialization Failure | `MODEL_UNAVAILABLE` | `503 Service Unavailable` | Checkpoint cannot be loaded |
+| Inference Failure | `INFERENCE_ERROR` | `500 Internal Server Error` | Model forward pass failed |
+| Unhandled Server Failure | `INTERNAL_ERROR` | `500 Internal Server Error` | Unexpected server-side failure |
+
+---
+
+## 6. Security & Error Handling
 
 - **Credential Masking**: `SensitiveDataFilter` in `backend/app/core/logging.py` intercepts logs and redacts tokens, API keys, passwords, and authorization headers (`***REDACTED***`).
-- **Internal Stack Trace Protection**: Unhandled exceptions are caught by `generic_exception_handler` and logged internally; clients receive a sanitized RFC-compliant error envelope with code `INTERNAL_SERVER_ERROR`.
+- **Internal Stack Trace Protection**: Unhandled exceptions are caught by `generic_exception_handler` and logged internally; clients receive a sanitized RFC-compliant error envelope with code `INTERNAL_ERROR`.
 - **CORS Protection**: CORS origins are restricted to configured hosts (`settings.ALLOWED_CORS_ORIGINS`). Broad wildcard (`*`) origins in production are strictly avoided.
 - **Input Sanitization**: Pydantic v2 validates size (1-5000 chars), types, and non-empty string integrity.
 
 ---
 
-## 6. Testing
+## 7. Testing
 
 Run backend tests using pytest:
 ```bash
 pytest backend/tests/test_health.py backend/tests/test_sentiment.py backend/tests/test_app.py backend/tests/test_sentiment_api.py -v
 ```
 
-All 24 test cases execute synchronously in memory without requiring external dependencies (YouTube, Redis, Celery, or external database servers).
+All 26 test cases execute synchronously in memory without requiring external dependencies (YouTube, Redis, Celery, or external database servers).

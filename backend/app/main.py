@@ -9,13 +9,18 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.api.router import api_router
-from backend.app.api.sentiment import analyze_sentiment
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.db.session import engine
-from backend.app.schemas.error import ErrorDetail, ErrorResponse
-from backend.app.schemas.sentiment import SentimentResponse
-from backend.app.services.sentiment_service import SentimentService
+from backend.app.schemas.common import ErrorDetail, ErrorResponse, HealthResponse
+from backend.app.schemas.sentiment import (
+    SentimentAnalyzeRequest,
+    SentimentAnalyzeResponse,
+)
+from backend.app.services.sentiment_service import (
+    SentimentService,
+    get_sentiment_service,
+)
 from ml.exceptions import (
     ModelNotTrainedError,
     ModelLoadingError,
@@ -108,8 +113,8 @@ async def model_not_trained_exception_handler(
     error_response = ErrorResponse(
         error=ErrorDetail(
             code="MODEL_NOT_TRAINED",
-            message="Trained sentiment model checkpoint is not available for inference.",
-            details=exc.details,
+            message="The Kollamo sentiment model is not available for inference.",
+            details=getattr(exc, "details", None),
         )
     )
     return JSONResponse(
@@ -127,7 +132,7 @@ async def model_loading_exception_handler(
     error_response = ErrorResponse(
         error=ErrorDetail(
             code="MODEL_UNAVAILABLE",
-            message="Sentiment model is currently unavailable or failed to initialize.",
+            message="The configured model cannot currently be loaded or accessed.",
             details=getattr(exc, "details", None),
         )
     )
@@ -164,7 +169,7 @@ async def ml_generic_exception_handler(
     logger.error(f"KollamoMLException on {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
-            code="ML_ERROR",
+            code="INTERNAL_ERROR",
             message="A machine learning pipeline error occurred.",
             details=None,
         )
@@ -180,13 +185,19 @@ async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
     """Formats Starlette/FastAPI HTTP exceptions into standard error envelope."""
-    error_code = "HTTP_ERROR"
-    if exc.status_code == 404:
+    error_code = "INTERNAL_ERROR"
+    if exc.status_code == 400:
+        error_code = "INVALID_REQUEST"
+    elif exc.status_code == 404:
         error_code = "NOT_FOUND"
     elif exc.status_code == 405:
         error_code = "METHOD_NOT_ALLOWED"
+    elif exc.status_code == 422:
+        error_code = "VALIDATION_ERROR"
     elif exc.status_code == 429:
         error_code = "RATE_LIMIT_EXCEEDED"
+    elif exc.status_code == 503:
+        error_code = "MODEL_UNAVAILABLE"
 
     error_response = ErrorResponse(
         error=ErrorDetail(
@@ -209,7 +220,7 @@ async def generic_exception_handler(
     logger.exception(f"Unhandled server error processing {request.method} {request.url.path}: {exc}")
     error_response = ErrorResponse(
         error=ErrorDetail(
-            code="INTERNAL_SERVER_ERROR",
+            code="INTERNAL_ERROR",
             message="An unexpected server error occurred. Please try again later.",
             details=None,
         )
@@ -232,41 +243,46 @@ async def root() -> dict:
     }
 
 
-# Minimal Health Endpoint (Independent of later-phase infrastructure)
+# Health Endpoint (Section 21: GET /health returns {"status": "ok"})
 @app.get(
     "/health",
+    response_model=HealthResponse,
     tags=["Health"],
     summary="Minimal API health check",
     description="Returns a lightweight, machine-readable status indicating the API process is alive.",
 )
-async def root_health() -> dict:
-    """Minimal health check endpoint that does not perform expensive ML inference or require DB/Redis."""
-    return {
-        "status": "healthy",
-        "project": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT,
-    }
+async def root_health() -> HealthResponse:
+    """Minimal health check endpoint indicating that the API process is alive."""
+    return HealthResponse(status="ok")
 
 
-# Mount Primary API Router under /api
-app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+# Mount Versioned /api/v1 Sentiment Endpoint (Section 8: POST /api/v1/sentiment)
+v1_router = APIRouter(prefix="/api/v1", tags=["Sentiment"])
 
-# Mount Versioned /api/v1 Sentiment Endpoint
-v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
-v1_router.add_api_route(
+
+@v1_router.post(
     "/sentiment",
-    analyze_sentiment,
-    methods=["POST"],
-    response_model=SentimentResponse,
+    response_model=SentimentAnalyzeResponse,
     status_code=status.HTTP_200_OK,
-    summary="Versioned single comment sentiment classification",
-    description="Accepts a Malayalam, Manglish, English, or code-mixed comment and returns a 5-class sentiment distribution.",
+    summary="Synchronously classify sentiment of a single comment",
+    description="Accepts a single social media comment and returns a 5-class sentiment distribution with model and processing metadata.",
     responses={
-        422: {"model": ErrorResponse, "description": "Validation error (empty, oversized, or malformed)"},
-        500: {"model": ErrorResponse, "description": "Internal server error"},
+        400: {"model": ErrorResponse, "description": "Invalid request"},
+        422: {"model": ErrorResponse, "description": "Validation error (missing, empty, or malformed)"},
+        500: {"model": ErrorResponse, "description": "Inference or internal server error"},
         503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
     },
     operation_id="analyze_sentiment_v1_post",
 )
+async def analyze_sentiment_v1(
+    request: SentimentAnalyzeRequest,
+    sentiment_service: SentimentService = Depends(get_sentiment_service),
+) -> SentimentAnalyzeResponse:
+    """Classifies sentiment using Phase 2 ML engine according to Section 10/15 schema."""
+    return sentiment_service.analyze_v1(request)
+
+
 app.include_router(v1_router)
+
+# Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)

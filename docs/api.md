@@ -15,14 +15,11 @@ Minimal machine-readable liveness probe indicating the API process is alive. Ind
 #### Response: `200 OK`
 ```json
 {
-  "status": "healthy",
-  "project": "Kollamo.ai",
-  "version": "0.4.0",
-  "environment": "development"
+  "status": "ok"
 }
 ```
 
-### `GET /api/health` & `GET /api/v1/health`
+### `GET /api/health`
 Checks server, database, Redis broker, and ML inference readiness.
 
 #### Response: `200 OK`
@@ -43,49 +40,35 @@ Checks server, database, Redis broker, and ML inference readiness.
 
 ## 2. Single-Comment Sentiment Analysis
 
-### `POST /api/v1/sentiment` & `POST /api/sentiment`
+### `POST /api/v1/sentiment`
 Synchronously classifies the sentiment of a single comment.
 
-#### Request Body
+#### Request Body (`SentimentAnalyzeRequest`)
 ```json
 {
-  "text": "Ee padam kidilan aayirunnu, must watch!",
-  "translate": true
+  "text": "ഇത് വളരെ നല്ല സിനിമയാണ്"
 }
 ```
 
-#### Response: `200 OK`
+#### Response: `200 OK` (`SentimentAnalyzeResponse`)
 ```json
 {
-  "original_text": "Ee padam kidilan aayirunnu, must watch!",
-  "detected_language": "ml-en",
-  "detected_script": "Latin",
-  "sentiment": "positive",
-  "confidence": 0.942,
-  "class_probabilities": {
-    "positive": 0.942,
-    "negative": 0.015,
-    "neutral": 0.021,
-    "mixed": 0.018,
-    "unsupported": 0.004
-  },
+  "original_text": "ഇത് വളരെ നല്ല സിനിമയാണ്",
+  "sentiment": "Positive",
+  "confidence": 0.96,
   "probabilities": {
-    "positive": 0.942,
-    "negative": 0.015,
-    "neutral": 0.021,
-    "mixed": 0.018,
-    "unsupported": 0.004
+    "Positive": 0.96,
+    "Negative": 0.01,
+    "Neutral": 0.01,
+    "Mixed": 0.01,
+    "Unsupported": 0.01
   },
-  "translation_status": "translated",
-  "translated_text": "This movie was awesome, must watch!",
-  "model_metadata": {
-    "architecture": "BaselineClassifier",
-    "device": "cpu"
+  "model": {
+    "name": "kollamo-muril-5class",
+    "version": "v1"
   },
-  "processing_metadata": {
-    "raw_length": 39,
-    "cleaned_length": 39,
-    "inference_time_ms": 1.15
+  "processing": {
+    "processing_time_ms": 42.0
   }
 }
 ```
@@ -114,10 +97,8 @@ Returned if fine-tuned model checkpoint is missing. Guarantees zero fake sentime
 {
   "error": {
     "code": "MODEL_NOT_TRAINED",
-    "message": "Trained sentiment model checkpoint is not available for inference.",
-    "details": {
-      "status": "MODEL_NOT_TRAINED"
-    }
+    "message": "The Kollamo sentiment model is not available for inference.",
+    "details": null
   }
 }
 ```

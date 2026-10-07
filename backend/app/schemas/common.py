@@ -1,6 +1,6 @@
 """Common and standardized schemas for Kollamo.ai Backend."""
 
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -18,12 +18,10 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
-class HealthStatus(BaseModel):
-    """Basic health status payload."""
+class HealthResponse(BaseModel):
+    """Minimal health response payload indicating API process liveness."""
 
-    status: str = Field(..., description="Health status string (e.g. 'ok', 'healthy')")
-    project: str = Field(..., description="Project name")
-    version: str = Field(..., description="Project version")
+    status: Literal["ok"] = "ok"
 
 
 class RootMetadataResponse(BaseModel):

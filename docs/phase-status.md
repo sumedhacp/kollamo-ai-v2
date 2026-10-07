@@ -261,42 +261,47 @@ Next phase:
 - **Commit**: `feat: add Kollamo.ai FastAPI backend foundation`
 - **Tag**: `v0.4.0`
 - **Dependencies**: Phase 2 (COMPLETE)
-- **Tests**: 24/24 Pytest backend tests passing across `test_health.py`, `test_sentiment.py`, `test_app.py`, and `test_sentiment_api.py`; 49/49 ML tests passing in `ml/tests/`; frontend build passing (`npm run build` in 44.8s)
+- **Tests**: 26/26 Pytest backend tests passing across `test_health.py`, `test_sentiment.py`, `test_app.py`, and `test_sentiment_api.py`; 49/49 ML tests passing in `ml/tests/`; frontend build passing (`npm run build` in 44.8s)
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
 
 #### Phase 3 Completion Gate Checklist:
 - [x] Repository rules inspected
-- [x] Phase 1 preserved (React, Vite, Tailwind CSS intact; builds cleanly)
-- [x] Phase 2 preserved (MuRIL architecture, 5-class taxonomy, 49/49 ML tests pass)
-- [x] FastAPI application implemented (`backend/app/main.py`)
-- [x] Backend structure follows responsibility boundaries (`app/main.py`, `app/api/`, `app/core/`, `app/schemas/`, `app/services/`)
-- [x] Health endpoint implemented (`GET /health` minimal liveness probe independent of later-phase infrastructure)
-- [x] Versioned sentiment endpoint implemented (`POST /api/v1/sentiment` & `POST /api/sentiment`)
-- [x] Pydantic request/response contracts implemented (`SentimentRequest`, `SentimentResponse`, `ClassProbabilities`)
-- [x] ML service boundary implemented (`SentimentService` delegating to Phase 2 `ModelLoader` & `SentimentPredictor`)
-- [x] Existing Phase 2 ML layer reused (`ModelLoader` handles model lifecycle)
-- [x] No duplicate MuRIL implementation (FastAPI does not contain neural layer duplicates)
-- [x] Model-unavailable state handled correctly (`ModelNotTrainedError` returns HTTP 503 with code `MODEL_NOT_TRAINED`; zero fake predictions)
-- [x] API validation implemented (empty text, whitespace-only, missing fields, type errors, oversized payloads rejected with 422)
-- [x] Structured error handling implemented (RFC-compliant envelopes, stack trace and credential masking)
-- [x] Configuration centralized (`backend/app/core/config.py` using Pydantic BaseSettings)
-- [x] CORS handled appropriately (`settings.ALLOWED_CORS_ORIGINS`, no accidental wildcard in production)
-- [x] OpenAPI documentation verified (`/openapi.json` and `/docs` valid with zero warnings)
-- [x] Backend tests implemented (`test_health.py`, `test_sentiment.py`, `test_app.py`, `test_sentiment_api.py`)
-- [x] Tests pass (24/24 backend tests pass in 8.43s)
-- [x] No YouTube implementation (belongs to Phase 4)
-- [x] No Celery/Redis implementation (belongs to Phase 5)
-- [x] No database business implementation (belongs to Phase 5/6)
-- [x] No frontend integration (belongs to Phase 6)
-- [x] No fake API behavior (never return HTTP 200 with fabricated sentiment)
-- [x] No secrets committed (`SensitiveDataFilter` active, `.gitignore` protects secrets and checkpoints)
-- [x] Documentation updated (`docs/backend.md` created, `docs/api.md` updated, `docs/phase-status.md` updated)
+- [x] Phase 1 preserved
+- [x] Phase 2 preserved
+- [x] Phase 2 ML interface reused
+- [x] Dependency interpreted as ML-contract dependency, not trained-model dependency
+- [x] FastAPI application implemented
+- [x] `/health` implemented
+- [x] `POST /api/v1/sentiment` implemented
+- [x] Exact request schema implemented
+- [x] Exact success response schema implemented
+- [x] Exact error response schema implemented
+- [x] Exact error codes implemented
+- [x] HTTP status mapping implemented
+- [x] Five-class label restrictions enforced
+- [x] Exactly five probability fields enforced
+- [x] Model metadata schema implemented
+- [x] Processing metadata schema implemented
+- [x] Model-unavailable state implemented
+- [x] No fake sentiment output
+- [x] Configuration centralized
+- [x] CORS configured appropriately
+- [x] OpenAPI verified
+- [x] API tests implemented
+- [x] Tests pass
+- [x] No YouTube implementation
+- [x] No Celery/Redis implementation
+- [x] No database business implementation
+- [x] No frontend integration
+- [x] No secrets committed
+- [x] Documentation updated
 - [x] Git diff reviewed
 - [x] Focused commit created
 - [x] GitHub push successful
 - [x] Remote commit verified
 - [x] `docs/phase-status.md` updated
+
 
 
 ---

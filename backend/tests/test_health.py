@@ -17,6 +17,14 @@ async def test_root_endpoint(async_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_minimal_health_endpoint(async_client: AsyncClient) -> None:
+    """Verifies minimal GET /health returns 200 with status: ok."""
+    response = await async_client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
 async def test_health_endpoint(async_client: AsyncClient) -> None:
     """Verifies GET /api/health returns 200 and structured services status."""
     response = await async_client.get("/api/health")
