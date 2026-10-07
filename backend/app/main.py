@@ -257,32 +257,9 @@ async def root_health() -> HealthResponse:
 
 
 # Mount Versioned /api/v1 Sentiment Endpoint (Section 8: POST /api/v1/sentiment)
-v1_router = APIRouter(prefix="/api/v1", tags=["Sentiment"])
+from backend.app.api.routes.sentiment import router as v1_sentiment_router
 
-
-@v1_router.post(
-    "/sentiment",
-    response_model=SentimentAnalyzeResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Synchronously classify sentiment of a single comment",
-    description="Accepts a single social media comment and returns a 5-class sentiment distribution with model and processing metadata.",
-    responses={
-        400: {"model": ErrorResponse, "description": "Invalid request"},
-        422: {"model": ErrorResponse, "description": "Validation error (missing, empty, or malformed)"},
-        500: {"model": ErrorResponse, "description": "Inference or internal server error"},
-        503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
-    },
-    operation_id="analyze_sentiment_v1_post",
-)
-async def analyze_sentiment_v1(
-    request: SentimentAnalyzeRequest,
-    sentiment_service: SentimentService = Depends(get_sentiment_service),
-) -> SentimentAnalyzeResponse:
-    """Classifies sentiment using Phase 2 ML engine according to Section 10/15 schema."""
-    return sentiment_service.analyze_v1(request)
-
-
-app.include_router(v1_router)
+app.include_router(v1_sentiment_router, prefix="/api/v1")
 
 # Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
