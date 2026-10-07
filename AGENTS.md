@@ -8,14 +8,115 @@ The platform ingests YouTube comment threads, classifies sentiment into five rig
 
 ---
 
-## Source of Truth
+## Source Specification Hierarchy
 
-The **Kollamo.ai Technical Project Specification** and Master Prompt represent the primary product specification and single source of truth.
+When determining WHAT Kollamo.ai is supposed to do, use the following authoritative 6-tier order:
 
-- In case of ambiguity, make the smallest reasonable engineering decision and document it in an Architectural Decision Record (`docs/adr/`).
-- Do not invent requirements silently.
-- Do not overwrite working code unnecessarily.
-- Understand existing implementations before modifying them.
+### SOURCE 1 — Provided Kollamo.ai Project Specification
+The provided Kollamo.ai technical/project specification is the primary product-requirements source.
+Use it for:
+- Product scope
+- Required functionality
+- Supported input types
+- Supported sentiment classes
+- Expected workflows
+- Specified technologies
+- Stated constraints
+- Stated project goals
+- Specified outputs
+
+Do not silently change requirements from the specification.
+
+### SOURCE 2 — Existing Approved Repository Implementation
+If the specification does not explicitly answer an implementation question, inspect the existing repository.
+Existing implementation reveals decisions already made, established interfaces, existing architecture, data structures, completed phase outputs, and integration contracts.
+*Rule*: Do not automatically treat existing code as a product requirement. Existing implementation is evidence of an implementation decision, not necessarily proof that the specification requires that behavior.
+
+### SOURCE 3 — AGENTS.md and Applicable Repository Rules
+Repository rules determine HOW the project should be developed (coding conventions, security rules, testing requirements, Git rules, directory conventions, implementation restrictions).
+*Rule*: Repository rules do not automatically override product requirements.
+- Product specification answers: **WHAT** should Kollamo.ai do?
+- Repository rules answer: **HOW** should Kollamo.ai be developed?
+
+### SOURCE 4 — Approved Architecture Decisions / ADRs
+Use approved ADRs (`docs/adr/`) when the specification leaves an architectural decision open (database architecture, service boundaries, API structure, model-serving strategy, asynchronous processing strategy).
+*Rule*: An ADR should not silently redefine a mandatory product requirement from the specification.
+
+### SOURCE 5 — Explicit Current User Instruction
+The user's current explicit instruction may intentionally change or clarify an earlier project decision.
+If it conflicts with an older project decision, follow the rule-precedence system documented here. Do not silently ignore the user's explicit request.
+
+### SOURCE 6 — Engineering Judgment
+Use general engineering knowledge only when the above sources do not provide an answer.
+*Rule*: When engineering judgment is used for a meaningful decision:
+- Document the assumption in `docs/spec-assumptions.md`.
+- Never present an engineering assumption as if it came from the original specification.
+
+---
+
+## Specification Access Fallback Procedure
+
+If the original Kollamo.ai specification is accessible:
+**USE IT AS THE PRIMARY PRODUCT SOURCE.** Do not replace it with general engineering knowledge.
+
+If the specification is NOT accessible in the current repository/environment:
+**DO NOT invent missing requirements.** Follow this strict fallback order:
+```text
+Existing repository implementation
+        ↓
+AGENTS.md / applicable repository rules
+        ↓
+Existing approved ADRs / architecture decisions
+        ↓
+Explicit current user instructions
+        ↓
+Previously approved phase decisions
+        ↓
+General engineering judgment
+```
+
+When operating under this fallback:
+1. Clearly identify that the original specification is unavailable.
+2. Do not claim that inferred requirements came from the specification.
+3. Record important assumptions in `docs/spec-assumptions.md`.
+
+---
+
+## Prohibition on Fabricating Requirements
+
+If a requirement cannot be confirmed from the specification or approved project decisions:
+**DO NOT invent or fabricate it.**
+
+Specifically, do **NOT** assume or introduce:
+- Additional user roles (e.g. admin panels, RBAC, editor accounts)
+- Additional sentiment categories (strictly the 5 canonical classes)
+- Additional ML models or unauthorized architectures
+- Additional unprompted APIs or external webhooks
+- Additional dashboard features or chat widgets
+- Additional authentication requirements (e.g. login walls for public analysis)
+- Additional deployment infrastructure
+
+Instead, classify the item as:
+```text
+Unknown / Assumption / Recommendation
+```
+and continue only if it is safe to do so. If a missing requirement blocks implementation, report it as a blocker instead of inventing a solution.
+
+---
+
+## Specification Statement Classification
+
+When interpreting project statements, distinguish strictly between:
+
+1. **Required Product Behavior**:
+   The specification explicitly requires the feature or behavior. This is **mandatory**.
+2. **Target / Goal**:
+   The specification states a target or objective (e.g. accuracy or throughput targets). Do **not** represent a target as an already-achieved result without empirical experimental evaluation.
+3. **Example**:
+   An example illustrates expected behavior or sample data. An example does **not** automatically create additional product requirements.
+4. **Implementation Guidance**:
+   A suggested implementation approach may be followed when appropriate, but must **not** be treated as a mandatory product requirement unless explicitly required.
+
 
 ---
 
@@ -182,3 +283,80 @@ Before declaring any feature or phase complete:
 3. Production build (`npm run build` / Python packaging) must succeed.
 4. Review git diff for unintended changes.
 5. For UI changes, verify desktop and mobile layouts in browser, checking console logs, loading states, empty states, and error handling.
+
+---
+
+## Authoritative Phase Dependency Model
+
+The single authoritative development sequence across all project phases is:
+
+```text
+PHASE 0: Foundation / Repository Setup
+    ↓
+PHASE 1: Frontend / UI Foundation
+    ↓
+PHASE 2: ML / NLP Foundation
+    ↓
+PHASE 3: Backend / FastAPI Foundation
+    ↓
+PHASE 4: YouTube Ingestion
+    ↓
+PHASE 5: Async Processing
+    ↓
+PHASE 6: Frontend ↔ Backend Integration
+    ↓
+PHASE 7: Audience Intelligence Dashboard
+    ↓
+PHASE 8: Translation + PDF Reporting
+    ↓
+PHASE 9: Testing + Security + Performance
+    ↓
+PHASE 10: Final Release
+```
+
+---
+
+## Phase Dependency Correction: Phase 2 → Phase 3
+
+Conflicting statements regarding Phase 2 and Phase 3 independence are permanently eliminated. There must never be a contradiction claiming that *"Phase 2 and Phase 3 are independent"* while simultaneously stating that *"Phase 3 requires Phase 2"*.
+
+For Kollamo.ai:
+```text
+Phase 2 → Phase 3
+```
+is the sole authoritative dependency relationship.
+- **Phase 2** establishes the ML/NLP foundation required by the backend (preprocessing pipelines, Google MuRIL predictor contract, baseline benchmarks, and evaluation schemas).
+- **Phase 3** integrates with and consumes that established ML/NLP foundation via backend adapters (`backend/app/ml/adapter.py`).
+- **Phase 3 must NOT attempt to recreate Phase 2.**
+
+---
+
+## Definition of Phase Dependency
+
+A phase dependency does **not** mean that every file from the previous phase must remain immutable. It means:
+> **The required output/contract of the previous phase must exist and be usable before the dependent phase is considered complete.**
+
+For example:
+- Phase 2 establishes a usable ML/NLP interface (`ml.inference.predictor.SentimentPredictor`).
+- Phase 3 consumes that interface via `backend/app/ml/adapter.py` rather than duplicating or mocking ML logic.
+This maintains clean, unpolluted phase boundaries.
+
+---
+
+## Phase Completion Gate & Recommended Work Principles
+
+### 1. Phase Completion Gate
+A phase may be marked **COMPLETE** only when all 7 criteria are satisfied:
+1. Its required work is finished.
+2. Its required tests and verification checks pass.
+3. Its required outputs and artifacts exist.
+4. Its documented dependency conditions are satisfied.
+5. No known blocking issue remains.
+6. The Git working state is reviewed and clean.
+7. `docs/phase-status.md` reflects the actual verified state.
+
+*Rule*: Do **NOT** mark a phase complete merely because its code exists.
+
+### 2. Recommended Work Does Not Create Dependencies
+A recommended feature must **NOT** become a phase dependency unless explicitly promoted to **REQUIRED**.
+Optional enhancements (e.g. Storybook, advanced CI/CD stages, optional caching tiers, extra telemetry, additional documentation) must not block subsequent phases unless project rules explicitly classify them as required.

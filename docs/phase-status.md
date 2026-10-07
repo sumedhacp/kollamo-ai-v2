@@ -1,6 +1,40 @@
 # Phase Status Tracking — Kollamo.ai
 
-This document tracks the execution, verification gates, and lifecycle status of all phases in the Kollamo.ai platform development process.
+This document tracks the execution, verification gates, lifecycle status, and authoritative dependency relationships of all phases in the Kollamo.ai platform development process.
+
+---
+
+## Authoritative Phase Dependency Chain
+
+```text
+PHASE 0: Foundation / Repository Setup
+    ↓
+PHASE 1: Frontend / UI Foundation
+    ↓
+PHASE 2: ML / NLP Foundation
+    ↓
+PHASE 3: Backend / FastAPI Foundation
+    ↓
+PHASE 4: YouTube Ingestion
+    ↓
+PHASE 5: Async Processing
+    ↓
+PHASE 6: Frontend ↔ Backend Integration
+    ↓
+PHASE 7: Audience Intelligence Dashboard
+    ↓
+PHASE 8: Translation + PDF Reporting
+    ↓
+PHASE 9: Testing + Security + Performance
+    ↓
+PHASE 10: Final Release
+```
+
+### Dependency Contradiction Resolution (Phase 2 → Phase 3)
+- **Resolved Conflict**: Previous prompt instructions contained an ambiguity suggesting both that *"Phase 2 and Phase 3 are independent"* and that *"Phase 3 requires Phase 2"*.
+- **Authoritative Rule**: **`Phase 2 → Phase 3`** is the sole dependency relationship. Phase 2 establishes the ML/NLP foundation (data contracts, preprocessing pipelines, and Google MuRIL predictor). Phase 3 consumes and integrates with this foundation via FastAPI adapters without recreating or duplicating ML logic.
+- **Specification Fallback**: The physical specification access fallback is active and recorded in [docs/spec-assumptions.md](./spec-assumptions.md). No unconfirmed requirements are fabricated.
+- **Recommended Work**: Recommended features (e.g. Storybook, advanced multi-cluster caching, optional telemetry) do not create phase dependencies unless explicitly promoted to required.
 
 ---
 
@@ -10,17 +44,18 @@ This document tracks the execution, verification gates, and lifecycle status of 
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Project Foundation** | *None* | **COMPLETE** | `main` | `aaeb59b` | `v0.1.0` |
 | **Phase 1** | Foundation + UI Shell | Phase 0 | **COMPLETE** | `phase/01-foundation` | `f4bcd79` | `v0.2.0` |
-| **Phase 2** | ML/NLP Foundation | Phase 0, Phase 1 | **COMPLETE** | `phase/02-ml` | `4b77551` | `v0.3.0` |
-| **Phase 3** | **FastAPI Backend** | Phase 0, Phase 1, Phase 2 | **COMPLETE** | `phase/03-backend` | `a1095c3` | `v0.4.0` |
-| **Phase 4** | **YouTube Ingestion** | Phase 0, Phase 3 (Rec: Phase 2) | **COMPLETE** | `phase/04-ingestion` | `f4821e5` | `v0.5.0` |
-| **Phase 5** | **Celery + Redis Async** | Phase 3, Phase 4 | **COMPLETE** | `phase/05-async` | `df5e11d` | `v0.6.0` |
-| **Phase 6** | Frontend/Backend Integration | Phase 1, 2, 3, 4, 5 (ALL COMPLETE) | **COMPLETE** | `phase/06-integration` | `462f07f` | `v0.7.0` |
+| **Phase 2** | ML/NLP Foundation | Phase 1 | **COMPLETE** | `phase/02-ml` | `4b77551` | `v0.3.0` |
+| **Phase 3** | **FastAPI Backend** | Phase 2 | **COMPLETE** | `phase/03-backend` | `a1095c3` | `v0.4.0` |
+| **Phase 4** | **YouTube Ingestion** | Phase 3 | **COMPLETE** | `phase/04-ingestion` | `f4821e5` | `v0.5.0` |
+| **Phase 5** | **Celery + Redis Async** | Phase 4 | **COMPLETE** | `phase/05-async` | `df5e11d` | `v0.6.0` |
+| **Phase 6** | Frontend/Backend Integration | Phase 5 | **COMPLETE** | `phase/06-integration` | `462f07f` | `v0.7.0` |
 | **Phase 7** | Audience Intelligence Dashboard | Phase 6 | **COMPLETE** | `phase/07-dashboard` | `c13cfbd` | `v0.8.0` |
 | **Phase 8** | Translation + PDF Reports | Phase 7 | **COMPLETE** | `phase/08-reporting` | `feat(reporting)` | `v0.9.0` |
 | **Phase 9** | Testing + Security + Performance | Phase 8 | **COMPLETE** | `phase/09-hardening` | `test(system)` | `v1.0.0-rc1` |
-| **Phase 10** | Deployment + Final Release | Phase 9 (COMPLETE) | **COMPLETE** | `phase/10-release` | `chore(release)` | `v1.0.0` |
+| **Phase 10** | Deployment + Final Release | Phase 9 | **COMPLETE** | `phase/10-release` | `chore(release)` | `v1.0.0` |
 
 ---
+
 
 ## Detailed Phase Records
 
@@ -90,7 +125,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/02-ml`
 - **Commit**: `feat(ml): establish multilingual sentiment pipeline`
 - **Tag**: `v0.3.0`
-- **Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE)
+- **Dependencies**: Phase 1 (COMPLETE)
 - **Tests**: 15 unit tests passing (pytest), baseline benchmark verified, MuRIL architecture verified
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
@@ -120,7 +155,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/03-backend`
 - **Commit**: `feat(api): create backend foundation`
 - **Tag**: `v0.4.0`
-- **Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE), Phase 2 (COMPLETE)
+- **Dependencies**: Phase 2 (COMPLETE)
 - **Tests**: 14/14 Pytest API endpoints, schema validation, and database integration tests passing
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
@@ -151,7 +186,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/04-ingestion`
 - **Commit**: `feat(ingestion): implement YouTube Data API v3 pipeline`
 - **Tag**: `v0.5.0`
-- **Dependencies**: Phase 0 (COMPLETE), Phase 3 (COMPLETE)
+- **Dependencies**: Phase 3 (COMPLETE)
 - **Tests**: 15/15 unit and integration tests passing for YouTube client, ingestion orchestrator, and endpoints (44/44 total project tests passing)
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
@@ -181,7 +216,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/05-async`
 - **Commit**: `feat(async): implement Celery Redis worker pipeline`
 - **Tag**: `v0.6.0`
-- **Dependencies**: Phase 3 (COMPLETE), Phase 4 (COMPLETE)
+- **Dependencies**: Phase 4 (COMPLETE)
 - **Tests**: 50/50 unit, integration, and benchmark tests passing across ML, Backend, YouTube Ingestion, and Celery Workers
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
@@ -211,7 +246,7 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - **Branch**: `phase/06-integration`
 - **Commit**: `feat(integration): connect frontend to FastAPI and async worker pipeline`
 - **Tag**: `v0.7.0`
-- **Dependencies**: Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 (ALL COMPLETE)
+- **Dependencies**: Phase 5 (COMPLETE)
 - **Tests**: 17 Vitest tests passing (API client, Sandbox live inference, Analyze real-time polling, Dashboard telemetry), 50 pytest tests passing (ML, backend, async pipeline)
 - **Known Issues**: None
 - **Completion Status**: **COMPLETE**
@@ -352,3 +387,22 @@ This document tracks the execution, verification gates, and lifecycle status of 
 - [x] Conventional Commit prepared (`chore(release): prepare Kollamo.ai v1.0.0 final release`).
 - [x] Phase tag prepared (`v1.0.0`).
 - [x] Branch ready for merge (`phase/10-release`).
+
+---
+
+## Deferred Recommended Work & Current Blockers
+
+### Current Blockers
+- **Active Blockers**: **NONE** (0 blockers). All phases 0 through 10 have satisfied their completion gates and are in COMPLETE status.
+
+### Deferred Recommended Work (Non-Blocking)
+The following items represent non-blocking recommendations or future explorations that were not promoted to mandatory requirements and therefore do not block any completed or ongoing phases:
+1. **Automated Hugging Face Hub Checkpoint Push**: Checkpoints are managed locally in `ml/models/muril_sentiment/` with deterministic weights loading; remote registry automation is deferred.
+2. **Kubernetes Multi-Cluster Orchestration**: The platform provides complete multi-container Docker Compose and production Dockerfile configurations; Helm charts and K8s manifests are deferred.
+3. **Multi-Language Machine Translation Expansion**: NLLB-200 / MarianMT translation is configured specifically for Malayalam/Manglish-to-English; additional Indic language pairs are deferred.
+4. **Third-Party APM Telemetry Agents**: Prometheus-ready metrics and structured logging are active; external Datadog/NewRelic agent integrations are deferred.
+
+### Authoritative Reference
+For specification access status, fallback rules, statement classifications, and verified baseline assumptions, refer to:
+- [AGENTS.md](../AGENTS.md) — Permanent Engineering Contract & Source Specification Hierarchy
+- [docs/spec-assumptions.md](./spec-assumptions.md) — Specification Fallback & Assumptions Record
