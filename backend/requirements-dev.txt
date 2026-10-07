@@ -1,0 +1,15 @@
+# ==============================================================================
+# Kollamo.ai — Backend Development & Quality Assurance Dependencies
+# ==============================================================================
+
+-r requirements.txt
+
+# Testing Frameworks
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+anyio>=4.0.0
+
+# Code Quality & Formatting
+flake8>=7.0.0
+black>=24.0.0
+mypy>=1.9.0

@@ -1,0 +1,36 @@
+# Git and IDE
+.git
+.gitignore
+.github
+.agents
+.idea
+.vscode
+
+# Python and Bytecode
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache
+.coverage
+htmlcov
+.tox
+venv/
+env/
+.env
+
+# Node and Frontend
+node_modules/
+dist/
+build/
+.npm
+
+# Temporary Databases and Test Logs
+*.db
+*.sqlite
+*.sqlite3
+test_kollamo.db
+*.log
+scratch/
+playwright-report/
+test-results/

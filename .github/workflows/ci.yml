@@ -1,4 +1,4 @@
-name: Kollamo.ai Continuous Integration
+name: Kollamo.ai Continuous Integration & Release Gates
 
 on:
   push:
@@ -7,53 +7,73 @@ on:
       - 'phase/**'
       - 'feat/**'
       - 'fix/**'
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
       - 'phase/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-secret-audit:
-    name: Secrets & Lint Audit
+  # 1. Audit for Credentials and Structural Integrity
+  security-and-lint-audit:
+    name: Security & Secret Leak Audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Check for Uncommitted Secrets
+      - name: Scan for Accidental Secrets
         run: |
-          echo "Scanning for accidental credential leaks..."
+          echo "Scanning for credential leaks and unencrypted secrets..."
           ! git grep -i -E "youtube_api_key\s*=\s*['\"][A-Za-z0-9_-]{20,}['\"]" .
-          ! git grep -i -E "postgres://.*:.*@" .
+          ! git grep -i -E "postgres://.*:[^@]+@" .
+          ! git grep -i -E "BEGIN (RSA|OPENSSH) PRIVATE KEY" .
         shell: bash
 
-  backend-verification:
-    name: Backend Lint & Tests
+  # 2. Backend & ML Python Verification Suite
+  backend-and-ml-verification:
+    name: Backend & ML Tests (${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
+    strategy:
+      matrix:
+        python-version: ["3.12"]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Install Backend & Dev Dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
 
-      - name: Run Pytest
+      - name: Run Full Pytest Suite (Backend & ML)
+        env:
+          ENVIRONMENT: test
+          DATABASE_URL: sqlite+aiosqlite:///test_ci.db
+          YOUTUBE_API_KEY: mock-ci-test-key
         run: |
-          if [ -d tests ]; then python -m pytest tests/ -v; else echo "No backend tests directory found yet."; fi
+          python -m pytest backend/tests ml/tests -v
 
+  # 3. Frontend Verification Suite (Vitest, TypeCheck & Build)
   frontend-verification:
-    name: Frontend Lint & Build
+    name: Frontend Quality Gates (Node 20)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -62,34 +82,37 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 18
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Dependencies
-        run: |
-          if [ -f package.json ]; then npm ci || npm install; else echo "No package.json yet."; fi
+      - name: Install Frontend Dependencies
+        run: npm ci
 
-      - name: Run Build
-        run: |
-          if [ -f package.json ]; then npm run build; else echo "No build script yet."; fi
+      - name: TypeScript Strict Type-Check
+        run: npm run type-check
 
-  ml-verification:
-    name: ML Pipeline Tests
+      - name: Run Vitest Unit & Journey Suites
+        run: npm test
+
+      - name: Compile Production Vite Bundle
+        run: npm run build
+
+  # 4. Docker Container Configuration Validation
+  docker-validation:
+    name: Docker Configuration & Syntax Validation
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ml
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run ML Unit Tests
+      - name: Validate Docker Compose Configuration
         run: |
-          if [ -d tests ]; then python -m pytest tests/ -v; else echo "No ML tests directory found yet."; fi
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.prod.yml config --quiet

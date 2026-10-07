@@ -1,12 +1,14 @@
 # Kollamo.ai — Malayalam-English Sentiment & Audience Intelligence
 
+[![Release: v1.0.0](https://img.shields.io/badge/Release-v1.0.0-blue.svg)](CHANGELOG.md)
 [![CI](https://github.com/sumedhacp/kollamo-ai-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/sumedhacp/kollamo-ai-v2/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Node: 18+](https://img.shields.io/badge/Node-18%2B-green.svg)](https://nodejs.org/)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Node: 20+](https://img.shields.io/badge/Node-20%2B-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C.svg)](https://pytorch.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](docker-compose.yml)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.2-EE4C2C.svg)](https://pytorch.org/)
 [![HuggingFace](https://img.shields.io/badge/MuRIL-google%2Fmuril--base--cased-yellow.svg)](https://huggingface.co/google/muril-base-cased)
 
 **Kollamo.ai** is an academic Master of Computer Applications (MCA) platform designed for fine-grained sentiment analysis and audience intelligence across regional Indian social web conversations. Specifically tailored for **Malayalam script**, **Manglish** (Romanized Malayalam), **English**, and **Malayalam-English code-mixed comments**, Kollamo.ai provides high-throughput ingestion of YouTube video comment threads, asynchronous neural classification, English translations for readability, and an executive audience intelligence dashboard.
@@ -35,7 +37,7 @@ flowchart TD
         YT_Ingest["YouTube Data API v3 Ingestion"]
         Preprocessor["Unicode & Transliteration Cleaner"]
         InferenceEngine["MuRIL Neural Classifier Head"]
-        TranslationSvc["Translation Service (NLLB / MarianMT)"]
+        TranslationSvc["Translation Service (MarianMT / Lexicon)"]
         Aggregator["Audience Metric Aggregator"]
     end
 
@@ -65,11 +67,11 @@ flowchart TD
   - `Neutral` — Factual, informational, or objective queries.
   - `Mixed` — Co-occurring positive and negative sentiments.
   - `Unsupported` — Unintelligible text, pure noise, or unsupported languages.
-- **Google MuRIL Foundation**: Powered by `google/muril-base-cased` fine-tuned for regional Dravidian code-mixed nuances with reproducible training checkpoints. No heuristic dictionaries or keyword rules.
+- **Google MuRIL Foundation**: Powered by `google/muril-base-cased` fine-tuned for regional Dravidian code-mixed nuances with reproducible training checkpoints. No heuristic dictionaries or fake fallback predictions.
 - **Official YouTube Data API v3 Ingestion**: Configurable comment extraction (50, 100, 250, 500, or ALL comments) supporting Most Liked, Newest, and Oldest sort modes with pagination and quota resilience.
 - **Asynchronous Scalability**: Celery + Redis architecture ensuring zero UI freeze or FastAPI blocking during multi-thousand comment processing.
-- **Audience Intelligence Dashboard**: Real-time distribution charts, sentiment vs. engagement analysis, top positive/negative comment highlights, and multifaceted filtering.
-- **Translation & Reporting**: Original comment preservation with English translations and client-side PDF executive report export using `jsPDF` and `html2canvas`.
+- **Audience Intelligence Dashboard**: Real-time distribution charts, sentiment vs. engagement analysis, Net Sentiment Approval Index (+60%), and multifaceted filtering.
+- **Translation & Reporting**: Original comment preservation with English translations and publication-quality PDF report generation using `jsPDF` and ReportLab.
 
 ---
 
@@ -78,110 +80,107 @@ flowchart TD
 ```text
 kollamo-ai-v2/
 ├── .agents/                    # Antigravity agent configuration
-│   ├── rules/                  # Directory & architectural rules
-│   └── skills/                 # Multi-step workflow skills
 ├── .github/                    # CI/CD workflows and issue templates
 ├── backend/                    # FastAPI application & Celery workers
+│   ├── alembic/                # Database migrations
 │   ├── app/
 │   │   ├── api/                # API routes and endpoints
-│   │   ├── core/               # App configuration & security
-│   │   ├── db/                 # Database engine & migrations
-│   │   ├── ml/                 # Inference runtime services
+│   │   ├── core/               # Configuration, security & rate limiting
+│   │   ├── db/                 # Database engine & session management
 │   │   ├── models/             # SQLAlchemy ORM models
-│   │   ├── repositories/       # Data access layer
 │   │   ├── schemas/            # Pydantic v2 validation models
-│   │   ├── services/           # Business logic & YouTube ingestion
-│   │   ├── utils/              # Helper utilities
+│   │   ├── services/           # Ingestion, sentiment, translation & reports
 │   │   └── workers/            # Celery task definitions
-│   └── tests/                  # Backend unit & integration tests
-├── docs/                       # System documentation and ADRs
-│   ├── adr/                    # Architecture Decision Records
-│   ├── architecture.md         # Full system architecture
-│   ├── api.md                  # API reference
-│   ├── database.md             # Database schema & migrations
-│   ├── ml-pipeline.md          # ML training & preprocessing specs
-│   ├── evaluation.md           # Metrics and baseline results
-│   ├── ui.md                   # UI/UX design tokens and guides
-│   ├── testing.md              # Testing guidelines
-│   ├── performance.md          # Benchmark results & optimization
-│   └── deployment.md           # Production deployment guide
+│   ├── tests/                  # Backend unit & security & benchmark tests
+│   └── requirements.txt        # Production Python dependencies
+├── docker/                     # Production Dockerfiles (backend & worker)
+├── docs/                       # Comprehensive documentation & ADRs
 ├── frontend/                   # React + Vite + TypeScript frontend
-│   ├── public/                 # Static assets
-│   └── src/                    # UI components, pages, hooks, services
-├── ml/                         # ML training, data, and offline evaluation
-│   ├── configs/                # Hyperparameter & training YAMLs
-│   ├── data/                   # Dataset splits and registries
-│   ├── evaluation/             # Metrics calculators and confusion matrices
-│   ├── inference/              # Offline prediction wrappers
-│   ├── models/                 # Model architectures & head definitions
-│   ├── preprocessing/          # Malayalam & Manglish text sanitizers
-│   ├── scripts/                # Training and evaluation runner scripts
-│   └── tests/                  # ML test suite
+│   ├── e2e/                    # Playwright E2E journey specifications
+│   ├── src/                    # UI components, pages, hooks, services, tests
+│   ├── Dockerfile              # Multi-stage Nginx production container
+│   ├── nginx.conf              # SPA reverse proxy configuration
+│   └── package.json            # Node.js dependencies
+├── ml/                         # ML training, data, models, and tests
+├── docker-compose.yml          # Five-tier container orchestration
+├── docker-compose.prod.yml     # Production stack with resource limits
 ├── .env.example                # Environment variable configuration template
-├── .gitignore                  # Git ignore rules
 ├── AGENTS.md                   # Permanent engineering contract
 ├── CHANGELOG.md                # Version changelog
-├── GEMINI.md                   # Antigravity root rules
-└── SECURITY.md                 # Security policies and reporting
+└── README.md                   # Project overview & documentation
 ```
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Option A: Quickstart via Docker Compose (Recommended)
 
-- **Python**: 3.10 or higher
-- **Node.js**: 18.x or higher (LTS recommended)
-- **PostgreSQL**: 14+
-- **Redis**: 6+
-- **Git**
+Run the entire 5-tier production stack (PostgreSQL, Redis, FastAPI backend, Celery worker, and Nginx frontend) with a single command:
 
-### Installation
+```bash
+# 1. Clone repository & configure environment
+git clone https://github.com/sumedhacp/kollamo-ai-v2.git
+cd kollamo-ai-v2
+cp .env.example .env
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repo-url>
-   cd kollamo-ai-v2
-   ```
+# 2. Build and run multi-container stack
+docker compose up -d --build
 
-2. **Configure Environment:**
-   ```bash
-   cp .env.example .env
-   # Update .env with your PostgreSQL credentials, Redis URL, and YouTube API key
-   ```
+# 3. Access the platform
+# Web Application: http://localhost
+# API Documentation: http://localhost:8000/docs
+# Health Check: http://localhost:8000/api/health
+```
 
-3. **Backend Setup:**
-   ```bash
-   cd backend
-   python -m venv .venv
-   # Windows: .venv\Scripts\activate
-   # Linux/macOS: source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+---
 
-4. **Frontend Setup:**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
+### Option B: Local Development Setup
+
+#### Prerequisites
+- **Python**: 3.12 (or 3.10+)
+- **Node.js**: 20+ (or 18+ LTS)
+- **PostgreSQL**: 16+ (or SQLite local fallback)
+- **Redis**: 7+
+
+#### 1. Backend & ML Setup
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate | Linux/macOS: source .venv/bin/activate
+pip install -r backend/requirements.txt
+pip install -r backend/requirements-dev.txt
+
+# Run FastAPI server
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+#### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
 ## 🧪 Testing & Verification
 
-- **Backend Tests:**
-  ```bash
-  cd backend && pytest
-  ```
-- **Frontend Tests:**
-  ```bash
-  cd frontend && npm run test
-  ```
-- **ML Pipeline Tests:**
-  ```bash
-  cd ml && pytest
-  ```
+Kollamo.ai enforces a multi-tier testing pyramid with **115+ automated tests passing**:
+
+```bash
+# 1. Run Backend & ML Pytest Suite (77 tests)
+python -m pytest backend/tests ml/tests
+
+# 2. Run Security Audits & Multi-Scale Performance Benchmarks
+python -m pytest backend/tests/test_security.py backend/tests/test_async_benchmark.py -v
+
+# 3. Run Frontend Vitest & Journey Tests (38 tests)
+cd frontend && npm test
+
+# 4. Strict TypeScript Typecheck & Production Build
+npm run type-check
+npm run build
+```
 
 ---
 
@@ -199,7 +198,7 @@ This project adheres strictly to **Conventional Commits** and phase branches:
 - `phase/07-dashboard`: Audience intelligence analytics.
 - `phase/08-reporting`: Translation service and PDF generator.
 - `phase/09-hardening`: End-to-end testing, security, and performance.
-- `phase/10-release`: Deployment readiness and demonstration.
+- `phase/10-release`: Deployment readiness and final release (`v1.0.0`).
 
 ---
 
