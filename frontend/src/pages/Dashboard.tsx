@@ -30,7 +30,7 @@ import { SentimentClass, AnalysisJob } from '@/types';
 import { api, ApiError, getJobV1, AnalysisResult } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
 import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
-import { VideoOverview, MetricCards } from '@/components/dashboard';
+import { VideoOverview, MetricCards, SentimentDistribution } from '@/components/dashboard';
 
 export const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -187,6 +187,8 @@ export const Dashboard: React.FC = () => {
         if (!isMounted) return;
         if (statusRes.result) {
           setJob(adaptAnalysisResultToJob(jobId, statusRes.result));
+        } else if ((statusRes as any).summary && (statusRes as any).video) {
+          setJob(statusRes as any);
         } else if (statusRes.status === 'FAILED') {
           setFetchError(statusRes.error?.message || 'Analysis job failed');
         } else {
@@ -658,6 +660,23 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Five-Class Sentiment Distribution Analytics (Phase 7) */}
+      {summary && !isDisplayingSkeleton && (
+        <SentimentDistribution
+          sentimentCounts={{
+            Positive: summary.sentiment_counts.positive,
+            Negative: summary.sentiment_counts.negative,
+            Neutral: summary.sentiment_counts.neutral,
+            Mixed: summary.sentiment_counts.mixed,
+            Unsupported: summary.sentiment_counts.unsupported,
+          }}
+          totalAnalyzed={summary.total_analyzed}
+          netApprovalIndex={netApprovalIndex}
+          activeFilter={activeTab === 'all' ? null : activeTab}
+          onSentimentClick={(s) => setActiveTab(s.toLowerCase() as SentimentClass)}
+        />
       )}
 
       {/* 2. Visual Charts Row */}

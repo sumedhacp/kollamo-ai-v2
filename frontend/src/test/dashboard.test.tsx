@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Dashboard } from '@/pages/Dashboard';
-import { VideoOverview, MetricCards } from '@/components/dashboard';
+import {
+  VideoOverview,
+  MetricCards,
+  SentimentDistribution,
+  SentimentLegend,
+} from '@/components/dashboard';
 
 describe('Audience Intelligence Dashboard (Phase 7)', () => {
   beforeEach(() => {
@@ -256,6 +261,124 @@ describe('Audience Intelligence Dashboard (Phase 7)', () => {
 
       expect(screen.getByText('Analyzed Comments')).toBeInTheDocument();
       expect(screen.getAllByText('0.0%').length).toBe(5);
+    });
+  });
+
+  describe('SentimentLegend Component (Phase 7 Analytics)', () => {
+    it('renders all 5 semantic sentiment classes with counts and percentage shares', () => {
+      const onSelectMock = vi.fn();
+      render(
+        <SentimentLegend
+          totalAnalyzed={500}
+          sentimentCounts={{
+            Positive: 250,
+            Negative: 100,
+            Neutral: 75,
+            Mixed: 50,
+            Unsupported: 25,
+          }}
+          onSelect={onSelectMock}
+        />
+      );
+
+      expect(screen.getByText('Positive')).toBeInTheDocument();
+      expect(screen.getByText('250')).toBeInTheDocument();
+      expect(screen.getByText('50.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Negative')).toBeInTheDocument();
+      expect(screen.getByText('100')).toBeInTheDocument();
+      expect(screen.getByText('20.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Neutral')).toBeInTheDocument();
+      expect(screen.getByText('75')).toBeInTheDocument();
+      expect(screen.getByText('15.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Mixed')).toBeInTheDocument();
+      expect(screen.getByText('50')).toBeInTheDocument();
+      expect(screen.getByText('10.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Unsupported')).toBeInTheDocument();
+      expect(screen.getByText('25')).toBeInTheDocument();
+      expect(screen.getByText('5.0%')).toBeInTheDocument();
+
+      // Click on Positive class item
+      const positiveItem = screen.getByText('Positive').closest('[role="listitem"]')!;
+      fireEvent.click(positiveItem);
+      expect(onSelectMock).toHaveBeenCalledWith('Positive');
+    });
+
+    it('safely renders zero percentages when totalAnalyzed is 0', () => {
+      render(
+        <SentimentLegend
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getAllByText('0.0%').length).toBe(5);
+    });
+  });
+
+  describe('SentimentDistribution Component (Phase 7 Analytics)', () => {
+    it('renders distribution container, toggles Donut/Bar modes, and shows Net Approval badge', () => {
+      const onSentimentClickMock = vi.fn();
+      render(
+        <SentimentDistribution
+          totalAnalyzed={100}
+          sentimentCounts={{
+            Positive: 68,
+            Negative: 8,
+            Neutral: 14,
+            Mixed: 8,
+            Unsupported: 2,
+          }}
+          netApprovalIndex={60}
+          onSentimentClick={onSentimentClickMock}
+        />
+      );
+
+      expect(screen.getByText('Five-Class Sentiment Distribution')).toBeInTheDocument();
+      expect(screen.getByText('Net: +60%')).toBeInTheDocument();
+
+      // View switcher buttons
+      const donutTab = screen.getByRole('tab', { name: /donut/i });
+      const barTab = screen.getByRole('tab', { name: /bar/i });
+      expect(donutTab).toBeInTheDocument();
+      expect(barTab).toBeInTheDocument();
+
+      // Toggle to Bar chart mode
+      fireEvent.click(barTab);
+      expect(barTab).toHaveAttribute('aria-selected', 'true');
+
+      // Toggle back to Donut mode
+      fireEvent.click(donutTab);
+      expect(donutTab).toHaveAttribute('aria-selected', 'true');
+
+      // Legend inside distribution
+      expect(screen.getByTestId('sentiment-legend')).toBeInTheDocument();
+    });
+
+    it('renders clean empty state message when totalAnalyzed is 0', () => {
+      render(
+        <SentimentDistribution
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getByText('No comments analyzed')).toBeInTheDocument();
     });
   });
 });
