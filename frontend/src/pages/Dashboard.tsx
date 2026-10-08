@@ -26,7 +26,7 @@ import { Alert } from '@/components/ui/alert';
 import { SentimentClass, AnalysisJob, CommentItem } from '@/types';
 import { api, ApiError, getJobV1, AnalysisResult } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
-import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
+import { generateAudienceIntelligencePdf, getAnalysisReportFilename } from '@/utils/pdfGenerator';
 import {
   VideoOverview,
   MetricCards,
@@ -382,13 +382,15 @@ export const Dashboard: React.FC = () => {
     if (!job) return;
     setIsGeneratingPdf(true);
     setPdfNotice(null);
+    const videoId = job.video?.video_id || (job as { video_id?: string }).video_id || job.job_id;
+    const filename = getAnalysisReportFilename(videoId);
     try {
       const doc = generateAudienceIntelligencePdf(job, {
         includeMethodology: true,
         includeComments: true,
         maxComments: 15,
       });
-      doc.save(`kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`);
+      doc.save(filename);
       setPdfNotice('Academic PDF report compiled and downloaded successfully!');
       setTimeout(() => setPdfNotice(null), 4000);
     } catch (err) {
@@ -398,7 +400,7 @@ export const Dashboard: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -407,7 +409,8 @@ export const Dashboard: React.FC = () => {
         setTimeout(() => setPdfNotice(null), 4000);
       } catch (serverErr) {
         console.error('Server PDF download failed:', serverErr);
-        setPdfNotice('Failed to generate PDF report. Please try again.');
+        setPdfNotice('Unable to generate the PDF report. Please try again.');
+        setTimeout(() => setPdfNotice(null), 4000);
       }
     } finally {
       setIsGeneratingPdf(false);
