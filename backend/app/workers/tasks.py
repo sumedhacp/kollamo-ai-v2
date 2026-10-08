@@ -1,6 +1,7 @@
 """Celery Background Tasks for Asynchronous Sentiment and Telemetry Pipelines."""
 
 import asyncio
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -223,6 +224,7 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
         from backend.app.services.youtube.errors import YouTubeError
 
     job_service = get_job_state_service()
+    start_time = time.perf_counter()
     logger.info(f"Worker claimed analysis job {job_id} for processing.")
 
     # 1. Update job to PROCESSING with stage FETCHING_VIDEO
@@ -340,6 +342,13 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
     comment_results = []
 
     if total_comments == 0:
+        empty_counts = {
+            "Positive": 0,
+            "Negative": 0,
+            "Neutral": 0,
+            "Mixed": 0,
+            "Unsupported": 0,
+        }
         job_service.update_job(
             job_id=job_id,
             status="COMPLETED",
@@ -354,8 +363,23 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
                 "total_comments": 0,
                 "processed_comments": 0,
                 "comments": [],
+                "sentiment_counts": empty_counts,
                 "model_name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
                 "model_version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+                "analysis": {
+                    "requested_comment_limit": request_data.get("comment_limit", 100),
+                    "returned_comment_count": 0,
+                    "sort_by": request_data.get("sort_by", "newest"),
+                    "sentiment_counts": empty_counts,
+                    "comments": [],
+                },
+                "model": {
+                    "name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
+                    "version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+                },
+                "processing": {
+                    "processing_time_ms": round((time.perf_counter() - start_time) * 1000.0, 2),
+                },
             },
         )
         return {"job_id": job_id, "status": "COMPLETED"}
@@ -383,6 +407,7 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
                 "comment_id": comment.comment_id,
                 "text": comment.text,
                 "author_name": comment.author_name,
+                "author_display_name": comment.author_name,
                 "like_count": comment.like_count,
                 "published_at": comment.published_at.isoformat() if comment.published_at else None,
                 "sentiment": pred.sentiment,
@@ -436,6 +461,15 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
             )
 
     # 5. Finalizing and Mark COMPLETED
+    sentiment_counts = {
+        "Positive": sum(1 for c in comment_results if c["sentiment"] == "Positive"),
+        "Negative": sum(1 for c in comment_results if c["sentiment"] == "Negative"),
+        "Neutral": sum(1 for c in comment_results if c["sentiment"] == "Neutral"),
+        "Mixed": sum(1 for c in comment_results if c["sentiment"] == "Mixed"),
+        "Unsupported": sum(1 for c in comment_results if c["sentiment"] == "Unsupported"),
+    }
+    processing_duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+
     job_service.update_job(
         job_id=job_id,
         status="COMPLETED",
@@ -450,10 +484,25 @@ def process_analysis_job(self: Any, job_id: str, request_data: Dict[str, Any]) -
             "total_comments": total_comments,
             "processed_comments": total_comments,
             "comments": comment_results,
+            "sentiment_counts": sentiment_counts,
             "model_name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
             "model_version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+            "analysis": {
+                "requested_comment_limit": request_data.get("comment_limit", 100),
+                "returned_comment_count": total_comments,
+                "sort_by": request_data.get("sort_by", "newest"),
+                "sentiment_counts": sentiment_counts,
+                "comments": comment_results,
+            },
+            "model": {
+                "name": getattr(sentiment_service.ml_service, "model_name", "kollamo-muril-5class"),
+                "version": getattr(sentiment_service.ml_service, "model_version", "v1"),
+            },
+            "processing": {
+                "processing_time_ms": processing_duration_ms,
+            },
         },
     )
-    logger.info(f"Analysis job {job_id} successfully completed {total_comments} comments.")
+    logger.info(f"Analysis job {job_id} successfully completed {total_comments} comments in {processing_duration_ms}ms.")
     return {"job_id": job_id, "status": "COMPLETED"}
 

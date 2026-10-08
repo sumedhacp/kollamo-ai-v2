@@ -9,10 +9,11 @@ import {
   Cpu,
   ChevronDown,
   ChevronUp,
+  ThumbsUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AnalysisResult, SentimentClassFive } from '@/services/api/types';
+import { AnalysisResult, SentimentClassFive, SentimentCounts } from '@/services/api/types';
 
 interface AnalysisResultPreviewProps {
   jobId: string;
@@ -28,7 +29,20 @@ export const AnalysisResultPreview: React.FC<AnalysisResultPreviewProps> = ({
   const navigate = useNavigate();
   const [showAllComments, setShowAllComments] = useState(false);
 
-  const { video, total_comments, processed_comments, comments, model_name, model_version } = result;
+  const comments = result.analysis?.comments || result.comments || [];
+  const totalComments = result.total_comments ?? result.analysis?.returned_comment_count ?? comments.length;
+  const processedComments = result.processed_comments ?? result.analysis?.returned_comment_count ?? comments.length;
+  const video = result.video;
+  const modelName = result.model?.name || result.model_name;
+  const modelVersion = result.model?.version || result.model_version;
+
+  const sentimentCounts: SentimentCounts = result.analysis?.sentiment_counts || result.sentiment_counts || {
+    Positive: comments.filter((c) => c.sentiment === 'Positive').length,
+    Negative: comments.filter((c) => c.sentiment === 'Negative').length,
+    Neutral: comments.filter((c) => c.sentiment === 'Neutral').length,
+    Mixed: comments.filter((c) => c.sentiment === 'Mixed').length,
+    Unsupported: comments.filter((c) => c.sentiment === 'Unsupported').length,
+  };
 
   const getSentimentBadge = (sentiment: SentimentClassFive) => {
     switch (sentiment) {
@@ -99,23 +113,51 @@ export const AnalysisResultPreview: React.FC<AnalysisResultPreviewProps> = ({
               <span>•</span>
               <span className="flex items-center gap-1">
                 <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                {processed_comments} of {total_comments} comments analyzed
+                {processedComments} of {totalComments} comments analyzed
               </span>
-
             </div>
           </div>
         </div>
 
         {/* Model Meta Footer */}
-        {(model_name || model_version) && (
+        {(modelName || modelVersion) && (
           <div className="pt-2.5 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
             <Cpu className="w-3.5 h-3.5 text-brand-600" />
             <span>
-              Model: <span className="font-mono text-slate-700">{model_name || 'kollamo-muril-5class'}</span>
-              {model_version && ` (${model_version})`}
+              Model: <span className="font-mono text-slate-700">{modelName || 'kollamo-muril-5class'}</span>
+              {modelVersion && ` (${modelVersion})`}
             </span>
           </div>
         )}
+      </div>
+
+      {/* Sentiment Counts Summary (Section 11, 34) */}
+      <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
+        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Sentiment Distribution Summary
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+            <div className="text-xs font-medium text-emerald-800">Positive</div>
+            <div className="text-lg font-bold text-emerald-900 mt-0.5">{sentimentCounts.Positive}</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-center">
+            <div className="text-xs font-medium text-rose-800">Negative</div>
+            <div className="text-lg font-bold text-rose-900 mt-0.5">{sentimentCounts.Negative}</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-center">
+            <div className="text-xs font-medium text-slate-700">Neutral</div>
+            <div className="text-lg font-bold text-slate-900 mt-0.5">{sentimentCounts.Neutral}</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-center">
+            <div className="text-xs font-medium text-amber-800">Mixed</div>
+            <div className="text-lg font-bold text-amber-900 mt-0.5">{sentimentCounts.Mixed}</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 text-center col-span-2 sm:col-span-1">
+            <div className="text-xs font-medium text-purple-800">Unsupported</div>
+            <div className="text-lg font-bold text-purple-900 mt-0.5">{sentimentCounts.Unsupported}</div>
+          </div>
+        </div>
       </div>
 
       {/* Primary Action Buttons */}
@@ -162,9 +204,17 @@ export const AnalysisResultPreview: React.FC<AnalysisResultPreviewProps> = ({
                 className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs space-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">
-                    {comment.author_name || 'Anonymous User'}
-                  </span>
+                  <div className="flex items-center gap-2 truncate max-w-[240px]">
+                    <span className="text-xs font-medium text-slate-700 truncate">
+                      {comment.author_display_name || comment.author_name || 'Anonymous User'}
+                    </span>
+                    {comment.like_count > 0 && (
+                      <span className="flex items-center gap-0.5 text-[10px] text-slate-400 font-medium">
+                        <ThumbsUp className="w-2.5 h-2.5" />
+                        {comment.like_count}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {getSentimentBadge(comment.sentiment)}
                     <span className="text-[11px] font-mono text-slate-500" title="Model confidence">

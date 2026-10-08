@@ -51,6 +51,7 @@ class YouTubeVideo(BaseModel):
     view_count: Optional[int] = Field(None, description="Total video view count")
     like_count: Optional[int] = Field(None, description="Total video like count")
     comment_count: Optional[int] = Field(None, description="Total comment count reported by video statistics")
+    comment_count_available: Optional[int] = Field(None, description="Total comment count available")
 
 
 class YouTubeComment(BaseModel):

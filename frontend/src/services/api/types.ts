@@ -7,6 +7,15 @@ export type CommentLimit = 50 | 100 | 250 | 500 | 'ALL';
 
 export type SortBy = 'most_liked' | 'newest' | 'oldest';
 
+export type Sentiment =
+  | 'Positive'
+  | 'Negative'
+  | 'Neutral'
+  | 'Mixed'
+  | 'Unsupported';
+
+export type SentimentClassFive = Sentiment;
+
 export type JobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface JobProgress {
@@ -37,41 +46,77 @@ export interface ApiErrorEnvelope {
   error: ApiErrorDetail;
 }
 
-export type SentimentClassFive =
-  | 'Positive'
-  | 'Negative'
-  | 'Neutral'
-  | 'Mixed'
-  | 'Unsupported';
+export interface SentimentProbabilities {
+  Positive: number;
+  Negative: number;
+  Neutral: number;
+  Mixed: number;
+  Unsupported: number;
+}
 
-export interface CommentSentimentResult {
+export interface SentimentCounts {
+  Positive: number;
+  Negative: number;
+  Neutral: number;
+  Mixed: number;
+  Unsupported: number;
+}
+
+export interface AnalysisComment {
   comment_id: string;
   text: string;
   author_name?: string | null;
+  author_display_name?: string | null;
   like_count: number;
   published_at?: string | null;
-  sentiment: SentimentClassFive;
+  sentiment: Sentiment;
   confidence: number;
-  probabilities: Record<string, number>;
+  probabilities: SentimentProbabilities | Record<string, number>;
 }
 
-export interface YouTubeVideoMetadata {
+export type CommentSentimentResult = AnalysisComment;
+
+export interface AnalysisVideo {
   video_id: string;
   title: string;
-  channel_title: string;
-  description?: string | null;
+  channel_title?: string | null;
   published_at?: string | null;
+  comment_count_available?: number | null;
   view_count?: number | null;
   like_count?: number | null;
   comment_count?: number | null;
+  description?: string | null;
   thumbnail_url?: string | null;
 }
 
+export type YouTubeVideoMetadata = AnalysisVideo;
+
+export interface AnalysisSummary {
+  requested_comment_limit: CommentLimit;
+  returned_comment_count: number;
+  sort_by: SortBy;
+  sentiment_counts: SentimentCounts;
+  comments: AnalysisComment[];
+}
+
+export interface AnalysisModelInfo {
+  name: string;
+  version: string;
+}
+
+export interface AnalysisProcessingInfo {
+  processing_time_ms: number;
+}
+
 export interface AnalysisResult {
-  video: YouTubeVideoMetadata;
-  total_comments: number;
-  processed_comments: number;
-  comments: CommentSentimentResult[];
+  video: AnalysisVideo;
+  total_comments?: number;
+  processed_comments?: number;
+  comments?: AnalysisComment[];
+  sentiment_counts?: SentimentCounts;
+  analysis?: AnalysisSummary;
+  model?: AnalysisModelInfo;
+  processing?: AnalysisProcessingInfo;
   model_name?: string | null;
   model_version?: string | null;
 }

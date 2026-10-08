@@ -73,6 +73,7 @@ class CommentSentimentResult(BaseModel):
     comment_id: str = Field(..., description="YouTube comment ID")
     text: str = Field(..., description="Raw comment text preserved verbatim")
     author_name: Optional[str] = Field(None, description="Author display name")
+    author_display_name: Optional[str] = Field(None, description="Author display name (canonical)")
     like_count: int = Field(default=0, description="Comment like count")
     published_at: Optional[datetime] = Field(None, description="Timestamp comment was published")
     sentiment: Literal["Positive", "Negative", "Neutral", "Mixed", "Unsupported"] = Field(
@@ -82,6 +83,39 @@ class CommentSentimentResult(BaseModel):
     probabilities: Dict[str, float] = Field(
         ..., description="Exact 5-class probability distribution summing to 1.0"
     )
+
+
+class SentimentCounts(BaseModel):
+    """Exact distribution counts across five canonical sentiment classes."""
+
+    Positive: int = Field(default=0, description="Count of positive comments")
+    Negative: int = Field(default=0, description="Count of negative comments")
+    Neutral: int = Field(default=0, description="Count of neutral comments")
+    Mixed: int = Field(default=0, description="Count of mixed comments")
+    Unsupported: int = Field(default=0, description="Count of unsupported comments")
+
+
+class AnalysisModelInfo(BaseModel):
+    """Model information metadata."""
+
+    name: str = Field(..., description="Canonical model identifier")
+    version: str = Field(..., description="Model version or checkpoint")
+
+
+class AnalysisProcessingInfo(BaseModel):
+    """Telemetry regarding async pipeline execution duration."""
+
+    processing_time_ms: float = Field(..., description="Total wall-clock duration in milliseconds")
+
+
+class AnalysisSummary(BaseModel):
+    """Aggregated analysis metadata and comment results."""
+
+    requested_comment_limit: Union[int, Literal["ALL"]] = Field(..., description="Requested comment limit")
+    returned_comment_count: int = Field(..., description="Total comments processed")
+    sort_by: Literal["most_liked", "newest", "oldest"] = Field(..., description="Sorting strategy")
+    sentiment_counts: SentimentCounts = Field(..., description="Summary counts per sentiment class")
+    comments: List[CommentSentimentResult] = Field(..., description="Processed comments")
 
 
 class AnalysisResult(BaseModel):
@@ -95,6 +129,10 @@ class AnalysisResult(BaseModel):
     )
     model_name: Optional[str] = Field(None, description="Canonical ML model identifier")
     model_version: Optional[str] = Field(None, description="Model checkpoint version")
+    sentiment_counts: Optional[Dict[str, int]] = Field(None, description="Direct mapping of sentiment counts")
+    analysis: Optional[AnalysisSummary] = Field(None, description="Canonical analysis summary schema")
+    model: Optional[AnalysisModelInfo] = Field(None, description="Canonical model info")
+    processing: Optional[AnalysisProcessingInfo] = Field(None, description="Processing execution telemetry")
 
 
 class JobStatusResponse(BaseModel):

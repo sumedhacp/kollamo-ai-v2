@@ -367,7 +367,7 @@ describe('Phase 6 Multi-Stage Polling Flow (Section 51)', () => {
         expect(screen.getByText('Sample Malayalam Review Video')).toBeInTheDocument();
         expect(screen.getByText(/Analysis Complete/i)).toBeInTheDocument();
         expect(screen.getByText('Kidu padam!')).toBeInTheDocument();
-        expect(screen.getByText('Positive')).toBeInTheDocument();
+        expect(screen.getAllByText('Positive').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByRole('button', { name: /view audience dashboard/i })).toBeInTheDocument();
       },
       { timeout: 4000 }

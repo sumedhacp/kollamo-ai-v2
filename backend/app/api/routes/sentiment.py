@@ -27,6 +27,19 @@ router = APIRouter(prefix="/sentiment", tags=["Sentiment"])
         503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
     },
 )
+@router.post(
+    "/analyze",
+    response_model=SentimentAnalyzeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Synchronously classify sentiment of a single comment (canonical alias)",
+    description="Accepts a single social media comment and returns a 5-class sentiment distribution with model and processing metadata.",
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid request"},
+        422: {"model": ErrorResponse, "description": "Validation error (missing, empty, or malformed)"},
+        500: {"model": ErrorResponse, "description": "Inference or internal server error"},
+        503: {"model": ErrorResponse, "description": "Model unavailable / Model not trained"},
+    },
+)
 async def analyze_sentiment(
     request: SentimentAnalyzeRequest,
     sentiment_service: SentimentService = Depends(get_sentiment_service),
