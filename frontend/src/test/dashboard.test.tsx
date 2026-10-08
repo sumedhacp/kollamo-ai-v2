@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Dashboard } from '@/pages/Dashboard';
+import { VideoOverview, MetricCards } from '@/components/dashboard';
 
 describe('Audience Intelligence Dashboard (Phase 7)', () => {
   beforeEach(() => {
@@ -145,5 +146,116 @@ describe('Audience Intelligence Dashboard (Phase 7)', () => {
     const prevBtn = screen.getByRole('button', { name: /previous/i });
     fireEvent.click(prevBtn);
     expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument();
+  });
+
+  describe('VideoOverview Component (Phase 7 UI)', () => {
+    it('renders all video intelligence metadata, model telemetry, and external YouTube link', () => {
+      render(
+        <VideoOverview
+          video={{
+            video_id: 'abc123xyz89',
+            title: 'Sample Malayalam Movie Teaser',
+            channel_title: 'SillyMonks Mollywood',
+            view_count: 500000,
+            like_count: 25000,
+            comment_count_available: 480,
+            published_at: '2026-03-15T10:00:00Z',
+          }}
+          model={{ name: 'kollamo-muril-v2', version: '2.1.0' }}
+          processing={{ processing_time_ms: 1450 }}
+        />
+      );
+
+      expect(screen.getByText('Sample Malayalam Movie Teaser')).toBeInTheDocument();
+      expect(screen.getByText('SillyMonks Mollywood')).toBeInTheDocument();
+      expect(screen.getByText('500,000')).toBeInTheDocument();
+      expect(screen.getByText('25,000')).toBeInTheDocument();
+      expect(screen.getByText('480')).toBeInTheDocument();
+      expect(screen.getByText(/kollamo-muril-v2/i)).toBeInTheDocument();
+      expect(screen.getByText(/1.45s/i)).toBeInTheDocument();
+
+      const watchLink = screen.getByRole('link', { name: /open youtube video sample malayalam movie teaser in new tab/i });
+      expect(watchLink).toHaveAttribute('href', 'https://www.youtube.com/watch?v=abc123xyz89');
+    });
+
+    it('handles missing optional video metadata gracefully with Unavailable', () => {
+      render(
+        <VideoOverview
+          video={{
+            video_id: 'minimal1234',
+            title: 'Minimal Metadata Video',
+            channel_title: null,
+            view_count: null,
+            like_count: null,
+            comment_count_available: null,
+            published_at: null,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Minimal Metadata Video')).toBeInTheDocument();
+      expect(screen.getByText(/channel unavailable/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/unavailable/i).length).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  describe('MetricCards Component (Phase 7 UI)', () => {
+    it('renders six metric cards with exact counts and calculated percentage of analyzed comments', () => {
+      render(
+        <MetricCards
+          totalAnalyzed={200}
+          sentimentCounts={{
+            Positive: 100,
+            Negative: 40,
+            Neutral: 30,
+            Mixed: 20,
+            Unsupported: 10,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Analyzed Comments')).toBeInTheDocument();
+      expect(screen.getByText('200')).toBeInTheDocument();
+
+      expect(screen.getByText('Positive')).toBeInTheDocument();
+      expect(screen.getByText('100')).toBeInTheDocument();
+      expect(screen.getByText('50.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Negative')).toBeInTheDocument();
+      expect(screen.getByText('40')).toBeInTheDocument();
+      expect(screen.getByText('20.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Neutral')).toBeInTheDocument();
+      expect(screen.getByText('30')).toBeInTheDocument();
+      expect(screen.getByText('15.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Mixed')).toBeInTheDocument();
+      expect(screen.getByText('20')).toBeInTheDocument();
+      expect(screen.getByText('10.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Unsupported')).toBeInTheDocument();
+      expect(screen.getByText('10')).toBeInTheDocument();
+      expect(screen.getByText('5.0%')).toBeInTheDocument();
+
+      expect(screen.getAllByText('of analyzed comments').length).toBe(5);
+    });
+
+    it('safely handles zero total analyzed comments without NaN or runtime errors', () => {
+      render(
+        <MetricCards
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Analyzed Comments')).toBeInTheDocument();
+      expect(screen.getAllByText('0.0%').length).toBe(5);
+    });
   });
 });

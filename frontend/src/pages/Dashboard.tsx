@@ -2,13 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   BarChart3,
-  MessageSquare,
   ThumbsUp,
-  Smile,
-  Frown,
-  Minus,
-  Shuffle,
-  HelpCircle,
   Search,
   Filter,
   Layers,
@@ -33,9 +27,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { SentimentClass, AnalysisJob } from '@/types';
-import { api, ApiError } from '@/services/api';
+import { api, ApiError, getJobV1, AnalysisResult } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
 import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
+import { VideoOverview, MetricCards } from '@/components/dashboard';
 
 export const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,6 +49,122 @@ export const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // Adapter function to transform Phase 6 AnalysisResult into dashboard state
+  const adaptAnalysisResultToJob = (id: string, result: AnalysisResult): AnalysisJob => {
+    const commentsList = result.analysis?.comments || result.comments || [];
+    const totalAnalyzed =
+      result.total_comments ?? result.analysis?.returned_comment_count ?? commentsList.length;
+
+    const counts = result.analysis?.sentiment_counts || result.sentiment_counts || {
+      Positive: commentsList.filter((c) => c.sentiment === 'Positive').length,
+      Negative: commentsList.filter((c) => c.sentiment === 'Negative').length,
+      Neutral: commentsList.filter((c) => c.sentiment === 'Neutral').length,
+      Mixed: commentsList.filter((c) => c.sentiment === 'Mixed').length,
+      Unsupported: commentsList.filter((c) => c.sentiment === 'Unsupported').length,
+    };
+
+    const posCount = (counts as any).Positive ?? (counts as any).positive ?? 0;
+    const negCount = (counts as any).Negative ?? (counts as any).negative ?? 0;
+    const neuCount = (counts as any).Neutral ?? (counts as any).neutral ?? 0;
+    const mixCount = (counts as any).Mixed ?? (counts as any).mixed ?? 0;
+    const unsCount = (counts as any).Unsupported ?? (counts as any).unsupported ?? 0;
+
+    const calcPct = (cnt: number) => (totalAnalyzed > 0 ? (cnt / totalAnalyzed) * 100 : 0);
+
+    const mappedComments = commentsList.map((c) => ({
+      comment_id: c.comment_id,
+      author_display_name: c.author_display_name || c.author_name || 'Anonymous User',
+      published_at: c.published_at || '',
+      like_count: c.like_count || 0,
+      reply_count: 0,
+      original_text: c.text,
+      detected_language: (c as any).detected_language || 'ml',
+      detected_script: (c as any).detected_script || 'Latin',
+      sentiment: ((c.sentiment ? c.sentiment.toLowerCase() : 'neutral') as SentimentClass),
+      confidence: c.confidence || 0.9,
+      probabilities: c.probabilities,
+      translated_text: (c as any).translated_text,
+    }));
+
+    return {
+      job_id: id,
+      status: 'completed',
+      progress: 1.0,
+      processed_comments: totalAnalyzed,
+      total_comments: totalAnalyzed,
+      created_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      video: {
+        video_id: result.video.video_id,
+        title: result.video.title,
+        channel_title: result.video.channel_title || '',
+        view_count: result.video.view_count || 0,
+        thumbnail_url: result.video.thumbnail_url || '',
+        published_at: result.video.published_at,
+        like_count: result.video.like_count,
+        comment_count: result.video.comment_count,
+        comment_count_available: result.video.comment_count_available,
+      },
+      summary: {
+        total_analyzed: totalAnalyzed,
+        sentiment_counts: {
+          positive: posCount,
+          negative: negCount,
+          neutral: neuCount,
+          mixed: mixCount,
+          unsupported: unsCount,
+        },
+        sentiment_percentages: {
+          positive: calcPct(posCount),
+          negative: calcPct(negCount),
+          neutral: calcPct(neuCount),
+          mixed: calcPct(mixCount),
+          unsupported: calcPct(unsCount),
+        },
+        engagement_metrics: {
+          total_likes: commentsList.reduce((acc, c) => acc + (c.like_count || 0), 0),
+          average_likes_per_sentiment: {
+            positive:
+              posCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Positive')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / posCount
+                : 0,
+            negative:
+              negCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Negative')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / negCount
+                : 0,
+            neutral:
+              neuCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Neutral')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / neuCount
+                : 0,
+            mixed:
+              mixCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Mixed')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / mixCount
+                : 0,
+            unsupported:
+              unsCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Unsupported')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / unsCount
+                : 0,
+          },
+        },
+      },
+      comments: mappedComments,
+      model: result.model,
+      processing: result.processing,
+      model_name: result.model_name || result.model?.name,
+      model_version: result.model_version || result.model?.version,
+    } as any;
+  };
+
   // Load job data
   useEffect(() => {
     if (!jobId) {
@@ -70,23 +181,46 @@ export const Dashboard: React.FC = () => {
     setIsLoading(true);
     setFetchError(null);
 
-    api
-      .getJobStatus(jobId)
-      .then((data) => {
-        if (isMounted) {
-          setJob(data);
+    // Try Phase 6 getJobV1 (/api/v1/analysis/jobs/{job_id}) first
+    getJobV1(jobId)
+      .then((statusRes) => {
+        if (!isMounted) return;
+        if (statusRes.result) {
+          setJob(adaptAnalysisResultToJob(jobId, statusRes.result));
+        } else if (statusRes.status === 'FAILED') {
+          setFetchError(statusRes.error?.message || 'Analysis job failed');
+        } else {
+          // If in progress or empty result, try legacy endpoint
+          api
+            .getJobStatus(jobId)
+            .then((legacyJob) => {
+              if (isMounted) setJob(legacyJob);
+            })
+            .catch(() => {
+              if (isMounted) setFetchError(`Job is currently ${statusRes.status.toLowerCase()}`);
+            });
         }
       })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err instanceof ApiError
-              ? `${err.code}: ${err.message}`
-              : err instanceof Error
-              ? err.message
-              : 'Failed to load analysis results';
-          setFetchError(msg);
-        }
+      .catch((_err: unknown) => {
+        // Fallback to legacy getJobStatus
+        api
+          .getJobStatus(jobId)
+          .then((data) => {
+            if (isMounted) {
+              setJob(data);
+            }
+          })
+          .catch((err: unknown) => {
+            if (isMounted) {
+              const msg =
+                err instanceof ApiError
+                  ? `${err.code}: ${err.message}`
+                  : err instanceof Error
+                  ? err.message
+                  : 'Failed to load analysis results';
+              setFetchError(msg);
+            }
+          });
       })
       .finally(() => {
         if (isMounted) {
@@ -294,51 +428,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const summaryCards = [
-    {
-      title: 'Total Comments',
-      value: summary ? summary.total_analyzed.toLocaleString() : '-',
-      icon: <MessageSquare className="w-4 h-4 text-brand-600" />,
-      border: 'border-slate-200',
-      badge: summary ? `${summary.total_analyzed} Analyzed` : '0 Analyzed',
-    },
-    {
-      title: 'Positive',
-      value: summary ? `${summary.sentiment_percentages.positive.toFixed(1)}%` : '-',
-      icon: <Smile className="w-4 h-4 text-emerald-600" />,
-      border: 'border-emerald-200',
-      badge: summary ? `${summary.sentiment_counts.positive} comments` : '0%',
-    },
-    {
-      title: 'Negative',
-      value: summary ? `${summary.sentiment_percentages.negative.toFixed(1)}%` : '-',
-      icon: <Frown className="w-4 h-4 text-rose-600" />,
-      border: 'border-rose-200',
-      badge: summary ? `${summary.sentiment_counts.negative} comments` : '0%',
-    },
-    {
-      title: 'Neutral',
-      value: summary ? `${summary.sentiment_percentages.neutral.toFixed(1)}%` : '-',
-      icon: <Minus className="w-4 h-4 text-slate-600" />,
-      border: 'border-slate-200',
-      badge: summary ? `${summary.sentiment_counts.neutral} comments` : '0%',
-    },
-    {
-      title: 'Mixed',
-      value: summary ? `${summary.sentiment_percentages.mixed.toFixed(1)}%` : '-',
-      icon: <Shuffle className="w-4 h-4 text-amber-600" />,
-      border: 'border-amber-200',
-      badge: summary ? `${summary.sentiment_counts.mixed} comments` : '0%',
-    },
-    {
-      title: 'Unsupported',
-      value: summary ? `${summary.sentiment_percentages.unsupported.toFixed(1)}%` : '-',
-      icon: <HelpCircle className="w-4 h-4 text-zinc-500" />,
-      border: 'border-zinc-200',
-      badge: summary ? `${summary.sentiment_counts.unsupported} comments` : '0%',
-    },
-  ];
-
   const sentimentChartData = useMemo(() => {
     if (!summary) return [];
     return [
@@ -391,11 +480,11 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            {job?.video ? job.video.title : 'Audience Analytics Dashboard'}
+            Audience Analytics Dashboard
           </h1>
           <p className="text-sm text-slate-600 mt-1">
             {job?.video
-              ? `Channel: ${job.video.channel_title} • ${Number(job.video.view_count || 0).toLocaleString()} views • ${comments.length} comments classified`
+              ? `${Number(job.video.view_count || 0).toLocaleString()} views • ${comments.length} comments classified`
               : 'Multilingual sentiment distributions, engagement metrics, and granular comment intelligence.'}
           </p>
         </div>
@@ -481,29 +570,42 @@ export const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* 1. Summary Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {summaryCards.map((card, idx) => (
-          <Card key={idx} className={`border ${card.border} shadow-sm`}>
-            <CardContent className="p-4 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-medium truncate">{card.title}</span>
-                {card.icon}
-              </div>
-              {isDisplayingSkeleton ? (
-                <Skeleton className="h-7 w-16" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{card.value}</div>
-              )}
-              {isDisplayingSkeleton ? (
-                <Skeleton className="h-4 w-12" />
-              ) : (
-                <div className="text-[11px] text-slate-400 font-mono">{card.badge}</div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Loading Skeleton */}
+      {isDisplayingSkeleton && (
+        <div className="space-y-4" data-testid="dashboard-loading-skeleton">
+          <Skeleton className="h-44 w-full rounded-xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Video Overview (Phase 7) */}
+      {job?.video && !isDisplayingSkeleton && (
+        <VideoOverview
+          video={job.video as any}
+          model={(job as any).model}
+          modelName={(job as any).model_name}
+          modelVersion={(job as any).model_version}
+          processing={(job as any).processing}
+        />
+      )}
+
+      {/* Metric Cards (Phase 7) */}
+      {summary && !isDisplayingSkeleton && (
+        <MetricCards
+          totalAnalyzed={summary.total_analyzed}
+          sentimentCounts={{
+            Positive: summary.sentiment_counts.positive,
+            Negative: summary.sentiment_counts.negative,
+            Neutral: summary.sentiment_counts.neutral,
+            Mixed: summary.sentiment_counts.mixed,
+            Unsupported: summary.sentiment_counts.unsupported,
+          }}
+        />
+      )}
 
       {/* Net Sentiment Approval Index Banner */}
       {summary && !isDisplayingSkeleton && (
