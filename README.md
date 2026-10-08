@@ -143,7 +143,7 @@ docker compose up -d --build
 #### Prerequisites
 - **Python**: 3.12 (or 3.10+)
 - **Node.js**: 20+ (or 18+ LTS)
-- **PostgreSQL**: 16+ (or SQLite local fallback)
+- **PostgreSQL**: 16+ (or local SQLite fallback)
 - **Redis**: 7+
 
 #### 1. Backend & ML Setup
@@ -153,16 +153,31 @@ python -m venv .venv
 pip install -r backend/requirements.txt
 pip install -r backend/requirements-dev.txt
 
-# Run FastAPI server
+# Start FastAPI server
 uvicorn backend.app.main:app --reload --port 8000
 ```
 
-#### 2. Frontend Setup
+#### 2. Redis & Celery Worker Setup
+```bash
+# Start Redis (via Docker or local daemon)
+docker run -d --name kollamo-redis -p 6379:6379 redis:7-alpine
+
+# Start Celery worker pool
+celery -A backend.app.workers.tasks.celery_app worker --loglevel=info --concurrency=2
+```
+
+#### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
+# Frontend accessible at http://localhost:5173
 ```
+
+#### 4. API Keys & Optional Configuration
+- **YouTube Data API v3**: Set `YOUTUBE_API_KEY` in `.env` to enable live video comment ingestion. If not provided, single-comment sandbox and mock bulk data analysis remain fully operational.
+- **Translation Engine**: Configurable via `TRANSLATION_SERVICE=marianmt` or `nllb` with in-memory caching.
+- **PDF Reporting**: Client-side high-fidelity PDF export powered by `jsPDF` and `html2canvas` directly from the dashboard.
 
 ---
 
@@ -190,21 +205,37 @@ npm run build
 
 ---
 
+## 📚 Academic Documentation & Handoff
+
+Detailed guides for viva voce defense, architectural decisions, and repository handoff:
+
+- **[Viva Voce Preparation & Technical Defense Guide](docs/VIVA_PREPARATION.md)**: Direct, verified answers for 10 evaluation domains.
+- **[Project Handoff & Maintenance Runbook](docs/PROJECT_HANDOFF.md)**: Complete operational handoff, architecture, and maintenance guide.
+- **[REST API Contract Specification](docs/api.md)**: FastAPI endpoints, Pydantic schemas, and error contracts.
+- **[Machine Learning Pipeline & Model Card](docs/ml-pipeline.md)**: MuRIL architecture, tokenizer details, and evaluation metrics.
+- **[Testing Strategy & Quality Pyramid](docs/testing.md)**: Unit, integration, security, and performance test suites.
+- **[Security Audit & Defense Analysis](docs/security-audit.md)**: CORS, input sanitization, API secret protection, and dependency audit.
+- **[Empirical Performance Benchmarks](docs/performance.md)**: Latency, throughput, and memory measurements across 50 to 3,500+ comments.
+
+---
+
+## ⚠️ Known Limitations (Honest Disclosures)
+
+- **Environment Scope**: Tested and hardened locally and within Docker multi-container environments; not deployed to public multi-region cloud infrastructure.
+- **User Authentication**: Single-tenant academic architecture without user logins (JWT/OAuth2) or multi-tenant workspace isolation.
+- **YouTube API Quotas**: Ingestion is constrained by Google's default 10,000 units/day quota.
+- **Translation Purpose**: Translation is designed as an advisory English reading aid; original Malayalam/Manglish text remains the immutable ground truth.
+- **Batch Processing Limits**: Empirically validated locally up to 3,500 comments; larger datasets require horizontal Celery worker scaling.
+
+---
+
 ## 📜 Development & Git Workflow
 
-This project adheres strictly to **Conventional Commits** and phase branches:
+This project adheres strictly to **Conventional Commits** and organized phase branches:
 
-- `main`: Stable, release-ready branch.
-- `phase/01-foundation`: UI & foundation scaffolding.
-- `phase/02-ml`: Multilingual MuRIL pipeline & baseline.
-- `phase/03-backend`: FastAPI backend and database layer.
-- `phase/04-ingestion`: YouTube Data API v3 ingestion service.
-- `phase/05-async`: Celery + Redis distributed execution.
-- `phase/06-integration`: Frontend-backend integration.
-- `phase/07-dashboard`: Audience intelligence analytics.
-- `phase/08-reporting`: Translation service and PDF generator.
-- `phase/09-hardening`: End-to-end testing, security, and performance.
-- `phase/10-release`: Deployment readiness and final release (`v1.0.0`).
+- `main`: Final stable release (`v1.0.1`).
+- `developer`: Main integration and active staging branch.
+- `feature/phase-0-foundation` through `feature/phase-10-release-readiness`: Dedicated feature branches tracking each developmental milestone.
 
 ---
 
