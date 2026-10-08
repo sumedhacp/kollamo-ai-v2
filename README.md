@@ -207,9 +207,15 @@ npm run build
 
 ## 📚 Academic Documentation & Handoff
 
-Detailed guides for viva voce defense, architectural decisions, and repository handoff:
+Comprehensive guides, project reports, and artifacts prepared for MCA academic submission and defense:
 
+- **[Complete MCA Project Report](docs/PROJECT_REPORT.md)**: Formal academic project report conforming to university guidelines (Chapters 1–9, References).
+- **[System Architecture Specification](docs/SYSTEM_ARCHITECTURE.md)**: Deep technical architecture specification with 8 Mermaid component and flow diagrams.
 - **[Viva Voce Preparation & Technical Defense Guide](docs/VIVA_PREPARATION.md)**: Direct, verified answers for 10 evaluation domains.
+- **[Project Demonstration Script](docs/DEMONSTRATION_SCRIPT.md)**: Step-by-step 14-stage walkthrough script for live examiners.
+- **[MCA Presentation Slide Deck](docs/PRESENTATION_SLIDES.md)**: Complete 16-slide presentation deck outline for project defense.
+- **[Final Submission Checklist](docs/SUBMISSION_CHECKLIST.md)**: Authoritative academic compliance matrix and submission checklist.
+- **[Final Software Verification Report](docs/FINAL_VERIFICATION_REPORT.md)**: Comprehensive software verification audit and test logs.
 - **[Project Handoff & Maintenance Runbook](docs/PROJECT_HANDOFF.md)**: Complete operational handoff, architecture, and maintenance guide.
 - **[REST API Contract Specification](docs/api.md)**: FastAPI endpoints, Pydantic schemas, and error contracts.
 - **[Machine Learning Pipeline & Model Card](docs/ml-pipeline.md)**: MuRIL architecture, tokenizer details, and evaluation metrics.
