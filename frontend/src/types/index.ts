@@ -45,10 +45,12 @@ export interface CommentItem {
   like_count: number;
   reply_count: number;
   original_text: string;
+  text?: string;
   detected_language: DetectedLanguage;
   detected_script: DetectedScript;
   sentiment: SentimentClass;
   confidence: number;
+  probabilities?: Record<string, number>;
   translated_text?: string;
 }
 

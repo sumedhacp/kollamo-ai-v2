@@ -4,12 +4,9 @@ import {
   BarChart3,
   ThumbsUp,
   Search,
-  Filter,
   Layers,
   ArrowRight,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
   TrendingUp,
   FileSpreadsheet,
@@ -20,17 +17,23 @@ import {
   FileText,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge, SentimentBadge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Alert } from '@/components/ui/alert';
-import { SentimentClass, AnalysisJob } from '@/types';
+import { SentimentClass, AnalysisJob, CommentItem } from '@/types';
 import { api, ApiError, getJobV1, AnalysisResult } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
 import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
-import { VideoOverview, MetricCards, SentimentDistribution } from '@/components/dashboard';
+import {
+  VideoOverview,
+  MetricCards,
+  SentimentDistribution,
+  CommentsTable,
+  CommentDetailsModal,
+} from '@/components/dashboard';
 
 export const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,6 +46,9 @@ export const Dashboard: React.FC = () => {
   const [sortBy, setSortBy] = useState<'likes' | 'confidence' | 'newest'>('likes');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  const [inspectedComment, setInspectedComment] = useState<CommentItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [job, setJob] = useState<AnalysisJob | null>(null);
@@ -1019,156 +1025,65 @@ export const Dashboard: React.FC = () => {
         </CardHeader>
 
         <CardContent className="p-0">
-          {isDisplayingSkeleton ? (
-            <div className="p-6 space-y-4" data-testid="dashboard-table-skeleton">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : paginatedComments.length > 0 ? (
-            <div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
-                    <tr>
-                      <th className="px-4 py-3">Author</th>
-                      <th className="px-4 py-3">Comment Text & Translation</th>
-                      <th className="px-4 py-3">Script</th>
-                      <th className="px-4 py-3">Sentiment</th>
-                      <th className="px-4 py-3">Confidence</th>
-                      <th className="px-4 py-3">Likes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {paginatedComments.map((c) => (
-                      <tr key={c.comment_id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap align-top">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700">
-                              {(c.author_display_name || 'U').charAt(0).toUpperCase()}
-                            </div>
-                            <span className="truncate max-w-[120px]">{c.author_display_name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 max-w-md">
-                          <div className="text-slate-900 font-serif text-[13px] leading-relaxed">
-                            {c.original_text}
-                          </div>
-                          {c.translated_text && (
-                            <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 text-brand-900 text-xs italic">
-                              <span className="font-semibold text-slate-500 mr-1 not-italic text-[10px] uppercase">
-                                En:
-                              </span>
-                              {c.translated_text}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top whitespace-nowrap">
-                          <Badge variant="outline" size="sm">
-                            {c.detected_script}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 align-top whitespace-nowrap">
-                          <SentimentBadge sentiment={c.sentiment} />
-                        </td>
-                        <td className="px-4 py-3 align-top font-mono whitespace-nowrap">
-                          {(c.confidence * 100).toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-3 align-top font-mono text-slate-700 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <ThumbsUp className="w-3 h-3 text-slate-400" />
-                            <span>{c.like_count}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination controls */}
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                <div>
-                  Showing {(currentPage - 1) * pageSize + 1} to{' '}
-                  {Math.min(currentPage * pageSize, filteredComments.length)} of{' '}
-                  {filteredComments.length} comments
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-                    Previous
-                  </Button>
-                  <span className="px-2 font-medium">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                  >
-                    Next
-                    <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="p-8">
-              <EmptyState
-                icon={<Filter className="w-8 h-8 text-slate-400" />}
-                title={job ? 'No Matching Comments Found' : 'No Analyzed Comments'}
-                description={
-                  job
-                    ? 'No comments matched your current keyword or script filter criteria.'
-                    : 'Analyze a YouTube video from the Analyze page to view full comment breakdowns and translations.'
-                }
-                action={
-                  !job ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
-                      <Link to="/analyze">
-                        <Button size="sm">
-                          Go to Analyze
-                          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSearchParams({ job_id: 'demo-aavesham-2026-sample' });
-                        }}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
-                        Explore Demo Review Dataset
-                      </Button>
-                    </div>
-                  ) : searchQuery || activeTab !== 'all' || activeScriptFilter !== 'all' ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setActiveTab('all');
-                        setActiveScriptFilter('all');
-                      }}
-                    >
-                      Clear All Filters
+          <CommentsTable
+            comments={paginatedComments}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalFiltered={filteredComments.length}
+            onPageChange={setCurrentPage}
+            onInspectComment={(c) => {
+              setInspectedComment(c);
+              setIsModalOpen(true);
+            }}
+            isSkeleton={isDisplayingSkeleton}
+            hasActiveFilters={Boolean(searchQuery || activeTab !== 'all' || activeScriptFilter !== 'all')}
+            onClearFilters={() => {
+              setSearchQuery('');
+              setActiveTab('all');
+              setActiveScriptFilter('all');
+            }}
+            emptyTitle={job ? 'No Matching Comments Found' : 'No Analyzed Comments'}
+            emptyDescription={
+              job
+                ? 'No comments matched your current keyword or script filter criteria.'
+                : 'Analyze a YouTube video from the Analyze page to view full comment breakdowns and translations.'
+            }
+            emptyAction={
+              !job ? (
+                <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
+                  <Link to="/analyze">
+                    <Button size="sm">
+                      Go to Analyze
+                      <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                     </Button>
-                  ) : undefined
-                }
-              />
-            </div>
-          )}
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchParams({ job_id: 'demo-aavesham-2026-sample' });
+                    }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
+                    Explore Demo Review Dataset
+                  </Button>
+                </div>
+              ) : undefined
+            }
+          />
         </CardContent>
       </Card>
+
+      {/* Comment Details & Class Probabilities Breakdown Modal (Phase 7) */}
+      <CommentDetailsModal
+        comment={inspectedComment}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setInspectedComment(null);
+        }}
+      />
     </div>
   );
 };

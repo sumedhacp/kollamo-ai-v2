@@ -7,6 +7,9 @@ import {
   MetricCards,
   SentimentDistribution,
   SentimentLegend,
+  CommentFilters,
+  CommentDetailsModal,
+  CommentsTable,
 } from '@/components/dashboard';
 
 describe('Audience Intelligence Dashboard (Phase 7)', () => {
@@ -379,6 +382,174 @@ describe('Audience Intelligence Dashboard (Phase 7)', () => {
       );
 
       expect(screen.getByText('No comments analyzed')).toBeInTheDocument();
+    });
+  });
+
+  describe('CommentDetailsModal Component (Phase 7 Comment Insights)', () => {
+    it('renders verbatim comment text, metadata, and full 5-class model probabilities breakdown', () => {
+      const onCloseMock = vi.fn();
+      render(
+        <CommentDetailsModal
+          isOpen={true}
+          onClose={onCloseMock}
+          comment={{
+            comment_id: 'c-test-999',
+            author_display_name: 'Anand Mohan',
+            published_at: '2026-04-12T14:30:00Z',
+            like_count: 342,
+            reply_count: 5,
+            original_text: 'FaFa mass performance aayirunnu, Sushin Shyam bgm adipoli!',
+            detected_language: 'ml-en',
+            detected_script: 'Latin',
+            sentiment: 'positive',
+            confidence: 0.945,
+            translated_text: 'FaFa mass performance was awesome, Sushin Shyam bgm great!',
+            probabilities: {
+              Positive: 0.945,
+              Negative: 0.012,
+              Neutral: 0.021,
+              Mixed: 0.015,
+              Unsupported: 0.007,
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('Anand Mohan')).toBeInTheDocument();
+      expect(screen.getByText('342 likes')).toBeInTheDocument();
+      expect(screen.getByText('Script: Latin')).toBeInTheDocument();
+      expect(screen.getByText('Confidence: 94.5%')).toBeInTheDocument();
+      expect(screen.getByText('FaFa mass performance aayirunnu, Sushin Shyam bgm adipoli!')).toBeInTheDocument();
+      expect(screen.getByText('FaFa mass performance was awesome, Sushin Shyam bgm great!')).toBeInTheDocument();
+
+      // Probabilities breakdown
+      expect(screen.getByText('Model Probabilities Breakdown')).toBeInTheDocument();
+      expect(screen.getByText('94.5%')).toBeInTheDocument();
+      expect(screen.getByText('1.2%')).toBeInTheDocument();
+      expect(screen.getByText('2.1%')).toBeInTheDocument();
+
+      // Close modal
+      const closeBtn = screen.getByRole('button', { name: /close comment details modal/i });
+      fireEvent.click(closeBtn);
+      expect(onCloseMock).toHaveBeenCalled();
+    });
+
+    it('does not render when isOpen is false', () => {
+      const { container } = render(
+        <CommentDetailsModal
+          isOpen={false}
+          onClose={vi.fn()}
+          comment={{
+            comment_id: 'c-1',
+            author_display_name: 'Test',
+            published_at: '2026-04-12T14:30:00Z',
+            like_count: 10,
+            reply_count: 0,
+            original_text: 'Sample',
+            detected_language: 'ml',
+            detected_script: 'Malayalam',
+            sentiment: 'positive',
+            confidence: 0.9,
+          }}
+        />
+      );
+      expect(container.firstChild).toBeNull();
+    });
+  });
+
+  describe('CommentFilters Component (Phase 7 Comment Insights)', () => {
+    it('handles search input, sort selection, and sentiment tab changes', () => {
+      const onSearchChangeMock = vi.fn();
+      const onTabChangeMock = vi.fn();
+      const onSortByChangeMock = vi.fn();
+      const onSelectThemeMock = vi.fn();
+
+      render(
+        <CommentFilters
+          searchQuery=""
+          onSearchChange={onSearchChangeMock}
+          activeTab="all"
+          onTabChange={onTabChangeMock}
+          activeScriptFilter="all"
+          onScriptFilterChange={vi.fn()}
+          sortBy="likes"
+          onSortByChange={onSortByChangeMock}
+          selectedTheme={null}
+          onSelectTheme={onSelectThemeMock}
+          discussionTopics={[
+            { label: 'BGM / Music', term: 'bgm' },
+            { label: 'FaFa Acting', term: 'fafa' },
+          ]}
+        />
+      );
+
+      // Search
+      const searchInput = screen.getByPlaceholderText(/search comments, authors, or translations/i);
+      fireEvent.change(searchInput, { target: { value: 'Sushin' } });
+      expect(onSearchChangeMock).toHaveBeenCalledWith('Sushin');
+
+      // Sort
+      const confidenceSortBtn = screen.getByRole('button', { name: 'Confidence' });
+      fireEvent.click(confidenceSortBtn);
+      expect(onSortByChangeMock).toHaveBeenCalledWith('confidence');
+
+      // Sentiment tab
+      const negativeTabBtn = screen.getByRole('button', { name: /^negative$/i });
+      fireEvent.click(negativeTabBtn);
+      expect(onTabChangeMock).toHaveBeenCalledWith('negative');
+
+      // Theme filter
+      const bgmThemeBtn = screen.getByRole('button', { name: 'BGM / Music' });
+      fireEvent.click(bgmThemeBtn);
+      expect(onSelectThemeMock).toHaveBeenCalledWith('bgm');
+    });
+  });
+
+  describe('CommentsTable Component (Phase 7 Comment Insights)', () => {
+    it('renders comments rows, pagination, and triggers inspect callback', () => {
+      const onInspectMock = vi.fn();
+      const onPageChangeMock = vi.fn();
+
+      render(
+        <CommentsTable
+          comments={[
+            {
+              comment_id: 'c1',
+              author_display_name: 'Reshma V',
+              published_at: '2026-04-11T10:00:00Z',
+              like_count: 85,
+              reply_count: 2,
+              original_text: 'Adipoli trailer, waiting for release!',
+              detected_language: 'ml-en',
+              detected_script: 'Latin',
+              sentiment: 'positive',
+              confidence: 0.98,
+            },
+          ]}
+          currentPage={1}
+          totalPages={3}
+          pageSize={10}
+          totalFiltered={25}
+          onPageChange={onPageChangeMock}
+          onInspectComment={onInspectMock}
+        />
+      );
+
+      expect(screen.getByText('Reshma V')).toBeInTheDocument();
+      expect(screen.getByText('Adipoli trailer, waiting for release!')).toBeInTheDocument();
+      expect(screen.getByText('85')).toBeInTheDocument();
+      expect(screen.getByText('98.0%')).toBeInTheDocument();
+
+      // Inspect click
+      const inspectBtn = screen.getByRole('button', { name: /inspect/i });
+      fireEvent.click(inspectBtn);
+      expect(onInspectMock).toHaveBeenCalled();
+
+      // Pagination
+      expect(screen.getByText(/showing 1 to 10 of 25 comments/i)).toBeInTheDocument();
+      const nextBtn = screen.getByRole('button', { name: /next/i });
+      fireEvent.click(nextBtn);
+      expect(onPageChangeMock).toHaveBeenCalledWith(2);
     });
   });
 });
