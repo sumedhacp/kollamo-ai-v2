@@ -43,7 +43,9 @@ class TranslationResult:
     detected_script: str
     intermediate_malayalam: Optional[str]
     method: str
-    status: str  # "translated", "original", "fallback", "error"
+    status: str  # "translated", "original", "fallback", "error", "NOT_NEEDED", "COMPLETED"
+    error_message: Optional[str] = None
+
 
 
 class BaseTranslationService(abc.ABC):
@@ -60,6 +62,34 @@ class BaseTranslationService(abc.ABC):
     ) -> TranslationResult:
         """Translate text returning structured provenance and confidence metadata."""
         pass
+
+    def to_comment_translation(
+        self, text: str, result: TranslationResult, target: str = "en"
+    ):
+        """Converts internal TranslationResult to standardized Phase 8 CommentTranslation schema."""
+        from backend.app.schemas.translation import CommentTranslation, TranslationStatus
+
+        if result.status == "NOT_NEEDED":
+            status = TranslationStatus.NOT_NEEDED.value
+            translated = None
+        elif result.status in ("error", "fallback_error"):
+            status = TranslationStatus.FAILED.value
+            translated = None
+        elif result.status == "fallback":
+            status = TranslationStatus.COMPLETED.value
+            translated = result.text
+        else:
+            status = TranslationStatus.COMPLETED.value
+            translated = result.text
+
+        return CommentTranslation(
+            original_text=text,
+            translated_text=translated,
+            source_language=result.source_language,
+            target_language=target,
+            status=status,
+            error_message=result.error_message,
+        )
 
 
 class HybridTranslationService(BaseTranslationService):
@@ -164,6 +194,7 @@ class HybridTranslationService(BaseTranslationService):
             ),
             "Accept-Language": "en-US,en;q=0.9,ml;q=0.8",
         })
+        self._cache: Dict[Tuple[str, str, str], TranslationResult] = {}
 
     @staticmethod
     def normalize_text(text: str) -> str:
@@ -316,8 +347,19 @@ class HybridTranslationService(BaseTranslationService):
                 detected_script="none",
                 intermediate_malayalam=None,
                 method="empty",
-                status="original",
+                status="NOT_NEEDED",
             )
+
+        cache_key = (original.lower().strip(), source.lower(), target.lower())
+        if hasattr(self, "_cache") and cache_key in self._cache:
+            return self._cache[cache_key]
+
+        def _cache_and_return(res: TranslationResult) -> TranslationResult:
+            if hasattr(self, "_cache"):
+                if len(self._cache) > 2000:
+                    self._cache.clear()
+                self._cache[cache_key] = res
+            return res
 
         detected_script = self.detect_script(original)
         clean_lower = original.lower().strip()
@@ -325,52 +367,60 @@ class HybridTranslationService(BaseTranslationService):
 
         # Step 0: Fast Colloquial Manglish Lexicon Check
         if clean_key in self.COLLOQUIAL_LEXICON:
-            return TranslationResult(
-                text=self.COLLOQUIAL_LEXICON[clean_key],
-                confidence=0.98,
-                source_language="manglish",
-                detected_script=detected_script,
-                intermediate_malayalam=None,
-                method="colloquial_lexicon",
-                status="translated",
+            return _cache_and_return(
+                TranslationResult(
+                    text=self.COLLOQUIAL_LEXICON[clean_key],
+                    confidence=0.98,
+                    source_language="manglish",
+                    detected_script=detected_script,
+                    intermediate_malayalam=None,
+                    method="colloquial_lexicon",
+                    status="translated",
+                )
             )
 
         lang_kind = self.classify_language(original)
 
         # Pure English: No translation needed (identity)
         if lang_kind == LanguageKind.ENGLISH:
-            return TranslationResult(
-                text=original,
-                confidence=0.99,
-                source_language="english",
-                detected_script=detected_script,
-                intermediate_malayalam=None,
-                method="identity",
-                status="original",
+            return _cache_and_return(
+                TranslationResult(
+                    text=original,
+                    confidence=1.0,
+                    source_language="english",
+                    detected_script=detected_script,
+                    intermediate_malayalam=None,
+                    method="identity",
+                    status="NOT_NEEDED",
+                )
             )
 
         # Pure Malayalam Script: Direct translation to English
         if lang_kind == LanguageKind.MALAYALAM or self.is_malayalam_script(original):
             translated = self._translate_cloud(original, source="ml", target=target)
             if translated and translated.strip().lower() != original.strip().lower():
-                return TranslationResult(
-                    text=self._clean_english(translated),
-                    confidence=0.92,
+                return _cache_and_return(
+                    TranslationResult(
+                        text=self._clean_english(translated),
+                        confidence=0.92,
+                        source_language="malayalam",
+                        detected_script=detected_script,
+                        intermediate_malayalam=original,
+                        method="ml->en",
+                        status="translated",
+                    )
+                )
+            # If translation failed or returned identical text
+            return _cache_and_return(
+                TranslationResult(
+                    text=original,
+                    confidence=0.30,
                     source_language="malayalam",
                     detected_script=detected_script,
                     intermediate_malayalam=original,
-                    method="ml->en",
-                    status="translated",
+                    method="fallback",
+                    status="fallback",
                 )
-            # If translation failed or returned identical text
-            return TranslationResult(
-                text=original,
-                confidence=0.30,
-                source_language="malayalam",
-                detected_script=detected_script,
-                intermediate_malayalam=original,
-                method="fallback",
-                status="fallback",
             )
 
         # Manglish / Mixed: Transliterate to Malayalam script first, then translate
@@ -378,39 +428,46 @@ class HybridTranslationService(BaseTranslationService):
         if ml_script:
             translated = self._translate_cloud(ml_script, source="ml", target=target)
             if translated and translated.strip().lower() != ml_script.strip().lower():
-                return TranslationResult(
-                    text=self._clean_english(translated),
-                    confidence=0.90,
-                    source_language="manglish",
-                    detected_script=detected_script,
-                    intermediate_malayalam=ml_script,
-                    method="translit->ml->en",
-                    status="translated",
+                return _cache_and_return(
+                    TranslationResult(
+                        text=self._clean_english(translated),
+                        confidence=0.90,
+                        source_language="manglish",
+                        detected_script=detected_script,
+                        intermediate_malayalam=ml_script,
+                        method="translit->ml->en",
+                        status="translated",
+                    )
                 )
 
         # Direct cloud translation attempt for Manglish / Mixed
         direct = self._translate_cloud(original, source="auto", target=target)
         if direct and direct.strip().lower() != original.strip().lower():
-            return TranslationResult(
-                text=self._clean_english(direct),
-                confidence=0.82,
-                source_language=lang_kind.value,
-                detected_script=detected_script,
-                intermediate_malayalam=ml_script,
-                method="direct->en",
-                status="translated",
+            return _cache_and_return(
+                TranslationResult(
+                    text=self._clean_english(direct),
+                    confidence=0.82,
+                    source_language=lang_kind.value,
+                    detected_script=detected_script,
+                    intermediate_malayalam=ml_script,
+                    method="direct->en",
+                    status="translated",
+                )
             )
 
         # Graceful fallback: return original text preserved
-        return TranslationResult(
-            text=original,
-            confidence=0.25,
-            source_language=lang_kind.value,
-            detected_script=detected_script,
-            intermediate_malayalam=ml_script,
-            method="fallback",
-            status="fallback",
+        return _cache_and_return(
+            TranslationResult(
+                text=original,
+                confidence=0.25,
+                source_language=lang_kind.value,
+                detected_script=detected_script,
+                intermediate_malayalam=ml_script,
+                method="fallback",
+                status="fallback",
+            )
         )
+
 
     def translate(self, text: str, source: str = "auto", target: str = "en") -> str:
         """Returns the translated string representation."""
@@ -450,12 +507,12 @@ class MockTranslationService(BaseTranslationService):
         if clean_lower.isascii() and any(w in clean_lower for w in ["the", "movie", "good", "bad"]):
             return TranslationResult(
                 text=clean,
-                confidence=0.99,
+                confidence=1.0,
                 source_language="en",
                 detected_script="latin",
                 intermediate_malayalam=None,
                 method="identity",
-                status="original",
+                status="NOT_NEEDED",
             )
         # Default mock translation
         return TranslationResult(

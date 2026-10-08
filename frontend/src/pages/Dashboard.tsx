@@ -374,6 +374,7 @@ export const Dashboard: React.FC = () => {
 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
   const [pdfNotice, setPdfNotice] = useState<string | null>(null);
 
   // Export PDF Report (Client jsPDF with Server Fallback)
@@ -410,6 +411,82 @@ export const Dashboard: React.FC = () => {
       }
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  // Trigger individual comment translation on demand
+  const handleTranslateSingleComment = async (commentToTranslate: CommentItem) => {
+    if (!job || !commentToTranslate) return;
+    if (commentToTranslate.translated_text) return;
+
+    if (
+      commentToTranslate.detected_language === 'en' ||
+      commentToTranslate.detected_script?.toLowerCase() === 'english' ||
+      commentToTranslate.translation_status === 'NOT_NEEDED'
+    ) {
+      return;
+    }
+
+    setTranslatingCommentId(commentToTranslate.comment_id);
+    try {
+      const res = await api.translateText(commentToTranslate.original_text, 'auto', 'en');
+      const isEnglish = res.status === 'NOT_NEEDED';
+      const newStatus = isEnglish ? 'NOT_NEEDED' : 'COMPLETED';
+      const translated = isEnglish ? undefined : res.translated_text;
+
+      setJob((prevJob) => {
+        if (!prevJob || !prevJob.comments) return prevJob;
+        return {
+          ...prevJob,
+          comments: prevJob.comments.map((c) =>
+            c.comment_id === commentToTranslate.comment_id
+              ? {
+                  ...c,
+                  translated_text: translated,
+                  translation_status: newStatus,
+                  translation_error: undefined,
+                }
+              : c
+          ),
+        };
+      });
+
+      setInspectedComment((prev) => {
+        if (!prev || prev.comment_id !== commentToTranslate.comment_id) return prev;
+        return {
+          ...prev,
+          translated_text: translated,
+          translation_status: newStatus,
+          translation_error: undefined,
+        };
+      });
+    } catch (err) {
+      console.error('Individual comment translation failed:', err);
+      setJob((prevJob) => {
+        if (!prevJob || !prevJob.comments) return prevJob;
+        return {
+          ...prevJob,
+          comments: prevJob.comments.map((c) =>
+            c.comment_id === commentToTranslate.comment_id
+              ? {
+                  ...c,
+                  translation_status: 'FAILED',
+                  translation_error: 'Translation unavailable.',
+                }
+              : c
+          ),
+        };
+      });
+      setInspectedComment((prev) => {
+        if (!prev || prev.comment_id !== commentToTranslate.comment_id) return prev;
+        return {
+          ...prev,
+          translation_status: 'FAILED',
+          translation_error: 'Translation unavailable.',
+        };
+      });
+    } finally {
+      setTranslatingCommentId(null);
     }
   };
 
@@ -1036,6 +1113,8 @@ export const Dashboard: React.FC = () => {
               setInspectedComment(c);
               setIsModalOpen(true);
             }}
+            onTranslateComment={handleTranslateSingleComment}
+            translatingCommentId={translatingCommentId}
             isSkeleton={isDisplayingSkeleton}
             hasActiveFilters={Boolean(searchQuery || activeTab !== 'all' || activeScriptFilter !== 'all')}
             onClearFilters={() => {
@@ -1075,7 +1154,7 @@ export const Dashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Comment Details & Class Probabilities Breakdown Modal (Phase 7) */}
+      {/* Comment Details & Class Probabilities Breakdown Modal (Phase 7 & 8) */}
       <CommentDetailsModal
         comment={inspectedComment}
         isOpen={isModalOpen}
@@ -1083,6 +1162,8 @@ export const Dashboard: React.FC = () => {
           setIsModalOpen(false);
           setInspectedComment(null);
         }}
+        onTranslateComment={handleTranslateSingleComment}
+        isTranslating={translatingCommentId === inspectedComment?.comment_id}
       />
     </div>
   );

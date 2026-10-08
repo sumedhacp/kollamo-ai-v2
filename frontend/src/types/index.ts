@@ -52,6 +52,8 @@ export interface CommentItem {
   confidence: number;
   probabilities?: Record<string, number>;
   translated_text?: string;
+  translation_status?: 'NOT_REQUESTED' | 'PENDING' | 'COMPLETED' | 'FAILED' | 'NOT_NEEDED' | string;
+  translation_error?: string;
 }
 
 export interface SentimentCounts {
@@ -140,6 +142,7 @@ export interface TranslationResponse {
   intermediate_malayalam?: string;
   method: string;
   status: string;
+  error_message?: string;
 }
 
 export interface ReportVideoInfo {

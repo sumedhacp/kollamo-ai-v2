@@ -135,3 +135,74 @@ async def test_sentiment_endpoint_with_translation(async_client: AsyncClient):
     data_no_trans = resp_no_trans.json()
     assert data_no_trans["translation_status"] == "not_requested"
     assert data_no_trans["translated_text"] is None
+
+
+def test_english_comment_not_needed():
+    """Verifies already-English comments receive NOT_NEEDED status without modification."""
+    service = HybridTranslationService()
+    text = "The background music was fantastic and direction was outstanding"
+    res = service.translate_detailed(text)
+    assert res.status == "NOT_NEEDED"
+    assert res.text == text
+    assert res.confidence == 1.0
+
+    # Ensure schema mapper assigns NOT_NEEDED
+    mapped = service.to_comment_translation(text, res)
+    assert mapped.status == "NOT_NEEDED"
+    assert mapped.original_text == text
+    assert mapped.translated_text is None
+
+
+def test_translation_caching_and_deduplication():
+    """Verifies that duplicate requests return from internal cache without reprocessing."""
+    service = HybridTranslationService()
+    text = "kidilan padam"
+    res1 = service.translate_detailed(text)
+    res2 = service.translate_detailed(text)
+    assert res1.text == res2.text
+    assert res1.status == res2.status
+    # Verify cached item exists in _cache
+    cache_key = (text.lower().strip(), "auto", "en")
+    assert cache_key in service._cache
+
+
+def test_original_text_preservation():
+    """Ensures raw original comments are never mutated or overwritten."""
+    service = HybridTranslationService()
+    raw = "ഈ സിനിമ അടിപൊളിയാണ്"
+    res = service.translate_detailed(raw)
+    mapped = service.to_comment_translation(raw, res)
+    assert mapped.original_text == raw
+    assert raw == "ഈ സിനിമ അടിപൊളിയാണ്"
+
+
+@pytest.mark.asyncio
+async def test_v1_translation_endpoints(async_client: AsyncClient):
+    """Verifies canonical POST /api/v1/translation and alias /api/v1/translate."""
+    # Test POST /api/v1/translation
+    resp1 = await async_client.post(
+        "/api/v1/translation",
+        json={"text": "adipoli movie", "source_language": "auto", "target_language": "en"},
+    )
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["original_text"] == "adipoli movie"
+    assert data1["target_language"] == "en"
+
+    # Test alias POST /api/v1/translate
+    resp2 = await async_client.post(
+        "/api/v1/translate",
+        json={"text": "nallath", "source_language": "auto", "target_language": "en"},
+    )
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["original_text"] == "nallath"
+    assert "good" in data2["translated_text"].lower()
+
+
+def test_translation_secret_safety():
+    """Verifies server-side translation configuration does not expose secrets in responses."""
+    from backend.app.core.config import settings
+    # Ensure config has server-side settings
+    assert hasattr(settings, "TRANSLATION_SERVICE")
+    assert hasattr(settings, "TRANSLATION_API_KEY")

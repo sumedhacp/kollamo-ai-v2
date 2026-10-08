@@ -4,6 +4,8 @@ import {
   ThumbsUp,
   Calendar,
   Cpu,
+  Languages,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge, SentimentBadge } from '@/components/ui/badge';
@@ -13,6 +15,8 @@ interface CommentDetailsModalProps {
   comment: CommentItem | null;
   isOpen: boolean;
   onClose: () => void;
+  onTranslateComment?: (comment: CommentItem) => void;
+  isTranslating?: boolean;
 }
 
 const CLASS_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
@@ -27,6 +31,8 @@ export const CommentDetailsModal: React.FC<CommentDetailsModalProps> = ({
   comment,
   isOpen,
   onClose,
+  onTranslateComment,
+  isTranslating = false,
 }) => {
   if (!isOpen || !comment) return null;
 
@@ -121,17 +127,57 @@ export const CommentDetailsModal: React.FC<CommentDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* English Translation if Available */}
-          {comment.translated_text && (
+          {/* English Translation Section */}
+          {comment.translated_text ? (
             <div className="space-y-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">
-                English Translation
-              </span>
-              <div className="p-3 rounded-xl bg-brand-50/40 border border-brand-100 text-xs text-brand-950 italic leading-relaxed">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                <span className="bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded text-[9px] font-mono not-italic">En:</span>
+                <span>English Translation</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 text-xs text-slate-900 italic leading-relaxed font-sans">
                 {comment.translated_text}
               </div>
             </div>
+          ) : (
+            <div className="space-y-1">
+              {comment.detected_language === 'en' || comment.detected_script?.toLowerCase() === 'english' || comment.translation_status === 'NOT_NEEDED' ? (
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500 italic">
+                  Comment is already in English.
+                </div>
+              ) : isTranslating ? (
+                <div className="p-2.5 rounded-lg bg-brand-50 border border-brand-200 text-xs text-brand-700 font-medium flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Translating comment to English...</span>
+                </div>
+              ) : comment.translation_status === 'FAILED' ? (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center justify-between">
+                  <span>Translation unavailable.</span>
+                  {onTranslateComment && (
+                    <button
+                      type="button"
+                      onClick={() => onTranslateComment(comment)}
+                      className="text-xs font-semibold underline hover:text-rose-900"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              ) : onTranslateComment ? (
+                <div className="pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onTranslateComment(comment)}
+                    className="w-full text-xs text-brand-700 border-brand-200 hover:bg-brand-50"
+                  >
+                    <Languages className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
+                    Translate to English
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           )}
+
 
           {/* Model Class Probabilities Breakdown */}
           {probEntries.length > 0 && (

@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Filter,
   Eye,
+  Languages,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge, SentimentBadge } from '@/components/ui/badge';
@@ -20,6 +22,8 @@ interface CommentsTableProps {
   totalFiltered: number;
   onPageChange: (page: number) => void;
   onInspectComment: (comment: CommentItem) => void;
+  onTranslateComment?: (comment: CommentItem) => void;
+  translatingCommentId?: string | null;
   isSkeleton?: boolean;
   onClearFilters?: () => void;
   hasActiveFilters?: boolean;
@@ -27,6 +31,7 @@ interface CommentsTableProps {
   emptyDescription?: string;
   emptyAction?: React.ReactNode;
 }
+
 
 export const CommentsTable: React.FC<CommentsTableProps> = ({
   comments,
@@ -36,6 +41,8 @@ export const CommentsTable: React.FC<CommentsTableProps> = ({
   totalFiltered,
   onPageChange,
   onInspectComment,
+  onTranslateComment,
+  translatingCommentId = null,
   isSkeleton = false,
   onClearFilters,
   hasActiveFilters = false,
@@ -120,15 +127,60 @@ export const CommentsTable: React.FC<CommentsTableProps> = ({
 
                 {/* Verbatim Text & Optional Translation */}
                 <td className="px-4 py-3 text-slate-700 max-w-md">
-                  <div className="text-slate-900 font-serif text-[13px] leading-relaxed break-words">
+                  <div className="text-slate-900 font-serif text-[13px] leading-relaxed break-words font-medium">
                     {c.original_text}
                   </div>
-                  {c.translated_text && (
-                    <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 text-brand-900 text-xs italic">
-                      <span className="font-semibold text-slate-500 mr-1 not-italic text-[10px] uppercase">
-                        En:
-                      </span>
-                      {c.translated_text}
+                  {c.translated_text ? (
+                    <div className="mt-1.5 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-emerald-950 text-xs leading-relaxed" data-testid={`translation-${c.comment_id}`}>
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase text-emerald-800 mb-0.5">
+                        <span className="bg-emerald-200/70 px-1 py-0.5 rounded text-[9px] font-mono not-italic text-emerald-900">En:</span>
+                        <span>English Translation</span>
+                      </div>
+                      <div className="italic font-sans text-slate-800 break-words">
+                        {c.translated_text}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      {c.detected_language === 'en' || c.detected_script?.toLowerCase() === 'english' || c.translation_status === 'NOT_NEEDED' ? (
+                        <span className="text-[11px] text-slate-400 italic">
+                          Already in English
+                        </span>
+                      ) : translatingCommentId === c.comment_id || c.translation_status === 'PENDING' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-brand-600 font-medium">
+                          <Loader2 className="w-3 h-3 animate-spin text-brand-600" />
+                          <span>Translating...</span>
+                        </span>
+                      ) : c.translation_status === 'FAILED' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-rose-500">
+                          <span>Translation unavailable.</span>
+                          {onTranslateComment && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTranslateComment(c);
+                              }}
+                              className="underline hover:text-rose-700 text-[10px] font-medium ml-1"
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </span>
+                      ) : onTranslateComment ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTranslateComment(c);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-brand-700 bg-brand-50 border border-brand-200/70 hover:bg-brand-100 transition-colors"
+                          title="Translate comment to English"
+                        >
+                          <Languages className="w-3 h-3 text-brand-600" />
+                          <span>Translate</span>
+                        </button>
+                      ) : null}
                     </div>
                   )}
                 </td>

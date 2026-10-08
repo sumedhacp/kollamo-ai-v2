@@ -162,5 +162,26 @@ describe('Phase 8: Translation & PDF Reporting', () => {
         ).toBeInTheDocument();
       });
     });
+
+    it('displays original comment with primary emphasis alongside English translation', async () => {
+      render(
+        <MemoryRouter initialEntries={['/dashboard?job_id=demo-aavesham-2026-sample']}>
+          <Dashboard />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Aavesham Official Trailer/i)).toBeInTheDocument();
+      });
+
+      // Original text from demo data must be prominently visible
+      expect(
+        screen.getByText(/FaFa mass avatar kidilan aayirunnu/i)
+      ).toBeInTheDocument();
+
+      // English Translation must also be clearly labeled
+      expect(screen.getAllByText(/English Translation/i).length).toBeGreaterThan(0);
+    });
   });
 });
+
