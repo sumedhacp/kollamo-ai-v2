@@ -257,13 +257,26 @@ All error responses return a standardized structured envelope adhering to RFC 78
 
 ## 6. Frontend Integration & Client Architecture
 
-The React/TypeScript frontend interacts with the backend through a strongly-typed service layer in `frontend/src/services/api.ts`:
+The React/TypeScript frontend interacts with the FastAPI backend through a strongly-typed, centralized service layer in `frontend/src/services/api/`:
 
-- **Client Layer (`api`)**: Methods include `checkHealth()`, `analyzeSentiment()`, `createAnalysisJob()`, `getJobStatus()`, and `processJob()`.
-- **Environment Configuration**: `VITE_API_BASE_URL` controls the endpoint URL, defaulting to `/api`.
-- **Dev Server Proxy**: Vite proxies `/api` directly to `http://localhost:8000/api` during local development, eliminating browser CORS setup friction.
-- **Error Handling**: Non-2xx responses are mapped to `ApiError` instances, retaining machine-readable error codes (`VALIDATION_ERROR`, `NETWORK_ERROR`, etc.) and validation error details for clear user feedback.
-- **Real-Time Telemetry Hook (`useJobPolling`)**: Subscribes to job lifecycle events at `1500ms` intervals with deterministic completion callbacks, automatic teardown, and fallback retry triggers.
+- **Client Layer (`frontend/src/services/api/`)**:
+  - `createAnalysisJob(request)`: Initiates asynchronous YouTube analysis via `POST /api/v1/analysis/jobs`, returning HTTP 202 Accepted with a unique `job_id`.
+  - `getAnalysisJob(jobId)`: Polls job status and execution progress via `GET /api/v1/analysis/jobs/{job_id}`.
+  - `checkHealth()`: Checks backend and model readiness via `GET /api/v1/health`.
+- **Environment Configuration**: `VITE_API_BASE_URL` controls the API target, defaulting to `http://localhost:8000`. Server-side secrets (e.g. YouTube API key) remain isolated and are never exposed to the client.
+- **Asynchronous Lifecycle Hook (`useAnalysisJob`)**:
+  - Orchestrates client state machine: `IDLE` -> `SUBMITTING` -> `QUEUED` -> `PROCESSING` -> `COMPLETED` / `FAILED`.
+  - Configurable polling interval (default 2000ms) with immediate initial poll upon job creation.
+  - Automatic teardown and cleanup on component unmount, job completion, job failure, or initiation of a new analysis.
+  - Stale response filtering and race-condition guards ensuring older poll responses do not overwrite newer job state.
+- **Progress Tracking & UI Mapping**:
+  - Real backend progress stages (`QUEUED`, `FETCHING_VIDEO`, `FETCHING_COMMENTS`, `SENTIMENT_ANALYSIS`, `FINALIZING`, `COMPLETED`) mapped directly to user-facing status indicators without artificial timers.
+- **Structured Error Handling**:
+  - Non-2xx responses mapped to strongly-typed `ApiError` instances preserving standard error codes (`VALIDATION_ERROR`, `MODEL_NOT_READY`, `NETWORK_ERROR`, `NOT_FOUND`, etc.).
+  - Friendly user guidance without exposing raw server stack traces or internal backend details.
+- **Data Rendering**:
+  - Verbatim Unicode preservation for Malayalam script, Manglish (Romanized Malayalam), Code-mixed text, and emojis.
+  - 5-class sentiment badges (`Positive`, `Negative`, `Neutral`, `Mixed`, `Unsupported`) with confidence scoring.
 
 ---
 

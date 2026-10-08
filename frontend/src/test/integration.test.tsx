@@ -244,71 +244,63 @@ describe('Analyze Page Real-Time Job Polling Integration', () => {
   });
 
   it('submits YouTube URL, tracks progress lifecycle, and renders completion CTA', async () => {
-    const jobCreateResponse: AnalyzeJobCreateResponse = {
-      job_id: 'job-xyz-789',
-      status: 'queued',
-      message: 'Analysis job queued successfully',
-      created_at: '2026-10-07T00:00:00Z',
-    };
-
-    const completedJobResponse: AnalysisJob = {
-      job_id: 'job-xyz-789',
-      status: 'completed',
-      progress: 1.0,
-      processed_comments: 100,
-      total_comments: 100,
-      video: {
-        video_id: 'L0yEMl8PXnw',
-        title: 'Aavesham Official Trailer',
-        channel_title: 'Anand Audio',
-        view_count: 5000000,
-      },
-      summary: {
-        total_analyzed: 100,
-        sentiment_counts: {
-          positive: 75,
-          negative: 10,
-          neutral: 10,
-          mixed: 5,
-          unsupported: 0,
-        },
-        sentiment_percentages: {
-          positive: 75.0,
-          negative: 10.0,
-          neutral: 10.0,
-          mixed: 5.0,
-          unsupported: 0.0,
-        },
-        engagement_metrics: {
-          total_likes: 1250,
-          average_likes_per_sentiment: {
-            positive: 15.2,
-            negative: 3.1,
-            neutral: 4.0,
-            mixed: 2.5,
-            unsupported: 0.0,
-          },
-        },
-      },
-      created_at: '2026-10-07T00:00:00Z',
-      completed_at: '2026-10-07T00:00:05Z',
-    };
-
     global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/analyze') && !url.includes('job-xyz-789')) {
+
+      if (
+        (url.includes('/api/v1/analysis/jobs') || url.includes('/api/analyze')) &&
+        !url.includes('job-xyz-789')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: async () => jobCreateResponse,
+          status: 202,
+          json: async () => ({
+            job_id: 'job-xyz-789',
+            status: 'QUEUED',
+            message: 'Analysis job queued successfully',
+            created_at: '2026-10-07T00:00:00Z',
+          }),
         });
       }
       if (url.includes('job-xyz-789')) {
         return Promise.resolve({
           ok: true,
-          json: async () => completedJobResponse,
+          status: 200,
+          json: async () => ({
+            job_id: 'job-xyz-789',
+            status: 'COMPLETED',
+            progress: {
+              stage: 'COMPLETED',
+              completed: 100,
+              total: 100,
+              percentage: 100,
+            },
+            result: {
+              video: {
+                video_id: 'L0yEMl8PXnw',
+                title: 'Aavesham Official Trailer',
+                channel_title: 'Anand Audio',
+                view_count: 5000000,
+              },
+              total_comments: 100,
+              processed_comments: 100,
+              comments: [
+                {
+                  comment_id: 'c1',
+                  text: 'Kidilan padam!',
+                  author_name: 'Rahul M',
+                  sentiment: 'Positive',
+                  confidence: 0.98,
+                  like_count: 42,
+                  probabilities: { Positive: 0.98, Negative: 0.01, Neutral: 0.01, Mixed: 0.0, Unsupported: 0.0 },
+                },
+              ],
+            },
+          }),
         });
       }
       return Promise.reject(new Error(`Unhandled url: ${url}`));
     });
+
 
     render(
       <MemoryRouter>

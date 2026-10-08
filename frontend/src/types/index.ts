@@ -208,3 +208,19 @@ export interface AnalysisReportResponse {
   methodology: ReportMethodology;
   disclaimer: string;
 }
+
+// Phase 6 Frontend ↔ Backend Integration Types
+export type {
+  CommentLimit,
+  SortBy,
+  JobProgress,
+  AnalysisJobRequest,
+  JobCreatedResponse,
+  CommentSentimentResult,
+  YouTubeVideoMetadata,
+  AnalysisResult,
+  JobStatusResponse,
+  AnalysisJobState,
+  SentimentClassFive,
+} from '@/services/api/types';
+

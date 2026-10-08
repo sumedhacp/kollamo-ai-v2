@@ -10,27 +10,20 @@ import {
   TranslationResponse,
   AnalysisReportResponse,
 } from '@/types';
+import { ApiError } from './api/client';
+import {
+  createAnalysisJob as createJobV1,
+  getAnalysisJob as getJobV1,
+  getStageLabel,
+  STAGE_LABELS,
+} from './api/analysis';
 
-/**
- * Standard API error class carrying status code, machine-readable error code,
- * and optional validation or diagnostic details.
- */
-export class ApiError extends Error {
-  public status: number;
-  public code: string;
-  public details?: unknown;
-
-  constructor(message: string, status: number, code: string, details?: unknown) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
-}
+export { ApiError, createJobV1, getJobV1, getStageLabel, STAGE_LABELS };
+export * from './api/types';
 
 // Configurable base URL, defaulting to '/api' (which is proxied by Vite dev server or reverse proxy)
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+
 
 /**
  * Generic JSON request handler with standard RFC error envelope parsing.
@@ -223,4 +216,15 @@ export const api = {
       { method: 'POST' }
     );
   },
+
+  /**
+   * Phase 6 Canonical: Create async analysis job via POST /api/v1/analysis/jobs
+   */
+  createAnalysisJobV1: createJobV1,
+
+  /**
+   * Phase 6 Canonical: Query async analysis job status via GET /api/v1/analysis/jobs/{job_id}
+   */
+  getAnalysisJobV1: getJobV1,
 };
+

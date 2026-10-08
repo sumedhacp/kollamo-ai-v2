@@ -5,10 +5,10 @@ This document tracks the execution, verification gates, lifecycle status, and au
 ---
 
 ## Current Execution State
-- **Current Phase**: Phase 5 — Asynchronous Processing with Celery + Redis
-- **Phase Status**: **COMPLETE** (All Phase 5 Completion Gate criteria verified)
-- **Predecessor Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE), Phase 2 (COMPLETE), Phase 3 (COMPLETE), Phase 4 (COMPLETE)
-- **Next Phase**: Phase 6 — Frontend ↔ Backend Integration (Awaiting explicit user instruction)
+- **Current Phase**: Phase 6 — Frontend ↔ Backend Integration
+- **Phase Status**: **COMPLETE** (All Phase 6 Completion Gate criteria verified)
+- **Predecessor Dependencies**: Phase 0 (COMPLETE), Phase 1 (COMPLETE), Phase 2 (COMPLETE), Phase 3 (COMPLETE), Phase 4 (COMPLETE), Phase 5 (COMPLETE)
+- **Next Phase**: Phase 7 — Audience Intelligence Dashboard (Awaiting explicit user instruction)
 
 ---
 
@@ -478,33 +478,106 @@ Phase 6 — Frontend ↔ Backend Integration
 
 ---
 
-### Phase 6 — Frontend/Backend Integration
-- **Start Date**: 2026-10-07
-- **Completion Date**: 2026-10-07
-- **Branch**: `phase/06-integration`
-- **Commit**: `feat(integration): connect frontend to FastAPI and async worker pipeline`
-- **Tag**: `v0.7.0`
-- **Dependencies**: Phase 5 (COMPLETE)
-- **Tests**: 17 Vitest tests passing (API client, Sandbox live inference, Analyze real-time polling, Dashboard telemetry), 50 pytest tests passing (ML, backend, async pipeline)
-- **Known Issues**: None
-- **Completion Status**: **COMPLETE**
+### Phase 6 — Frontend ↔ Backend Integration
+
+```text
+Phase: 6
+Phase Status: COMPLETE
+
+Dependencies:
+Phase 2 ML Interface
+Phase 3 FastAPI
+Phase 4 YouTube Ingestion
+Phase 5 Async Processing
+
+Frontend API Client:
+READY
+
+Job Creation:
+READY
+
+Job Polling:
+READY
+
+Progress UI:
+READY
+
+Completed State:
+READY
+
+Failed State:
+READY
+
+CORS:
+READY
+
+Frontend Build:
+PASS
+
+Frontend Tests:
+PASS
+
+Backend Tests:
+PASS
+
+Model Readiness:
+MODEL_NOT_READY
+
+Git Commit:
+feat: integrate Kollamo.ai frontend with backend
+
+GitHub Push:
+SUCCESS
+
+Next Phase:
+Phase 7 — Audience Intelligence Dashboard
+```
+
+> Phase 6 frontend ↔ backend integration is complete. It connects the Kollamo.ai React/Vite frontend to the FastAPI backend asynchronous analysis pipeline (`POST /api/v1/analysis/jobs` and `GET /api/v1/analysis/jobs/{job_id}`). It provides a centralized, strongly-typed API client, reactive job state machine (`useAnalysisJob`), configurable 2-second polling with teardown and race-condition guards, real backend progress stage reporting, robust error mapping for network/validation/model readiness issues, and verbatim comment rendering with 5-class sentiment predictions.
 
 #### Phase 6 Completion Gate Checklist:
-- [x] Requirements implemented (Typed API client service layer, standard ApiError envelope handling, useJobPolling hook, real-time stage progress tracking, Comment Sandbox connected to live /api/sentiment, YouTube Analysis page connected to /api/analyze with real-time polling, Dashboard connected to /api/analyze/{job_id} with query param routing, ApiStatusIndicator in Navbar, Vite proxy configuration)
-- [x] Unit tests passing (Vitest: 17/17 tests passed across components, pages, and integration suites)
-- [x] Integration tests passing where applicable (Mocked API responses for sentiment inference, RFC error envelopes, multi-stage job progress polling, telemetry visualizations)
-- [x] Build passing (`npm run build` completed cleanly, `npm run type-check` with zero errors)
-- [x] Browser verification completed where applicable (Vite preview verified, responsive design across mobile/desktop, zero runtime errors)
-- [x] No console errors (0 runtime errors)
-- [x] No secrets committed (Verified via .gitignore, zero API keys exposed in frontend)
-- [x] Git diff reviewed (Clean diff, no unwanted temporary files)
-- [x] Documentation updated (`docs/api.md` updated with frontend client and integration specs)
-- [x] CHANGELOG updated (v0.7.0 release recorded)
-- [x] Known limitations documented (Detailed audience charts and drill-down analytics expand in Phase 7)
-- [x] No blocking issue remains
-- [x] Conventional Commit prepared (`feat(integration): connect frontend to FastAPI and async worker pipeline`)
-- [x] Phase tag prepared (`v0.7.0`)
-- [x] Branch ready for merge (`phase/06-integration`)
+- [x] Repository rules inspected
+- [x] Phase 1 frontend preserved
+- [x] Phase 2 ML contract preserved
+- [x] Phase 3 API preserved
+- [x] Phase 4 YouTube ingestion preserved
+- [x] Phase 5 async processing preserved
+- [x] Frontend API base URL configured (`frontend/.env.example` with `VITE_API_BASE_URL`)
+- [x] No backend secrets exposed to frontend
+- [x] Centralized API client implemented (`frontend/src/services/api/`)
+- [x] Type-safe API contracts implemented (`frontend/src/services/api/types.ts`)
+- [x] YouTube analysis form connected (`frontend/src/components/analysis/AnalysisForm.tsx`)
+- [x] Comment limit selection works (50, 100, 250, 500, ALL)
+- [x] Sort selection works (most_liked, newest, oldest)
+- [x] Job creation works (POST /api/v1/analysis/jobs)
+- [x] HTTP 202 handled
+- [x] Job ID stored
+- [x] Polling implemented (GET /api/v1/analysis/jobs/{job_id})
+- [x] Polling cleanup implemented (teardown on unmount, completion, failure, new job)
+- [x] Race conditions handled (discarding stale job IDs)
+- [x] QUEUED state implemented
+- [x] PROCESSING state implemented
+- [x] Progress displayed from real backend values (`AnalysisProgress.tsx`)
+- [x] COMPLETED state implemented
+- [x] FAILED state implemented
+- [x] MODEL_NOT_READY handled
+- [x] Network errors handled
+- [x] API errors handled
+- [x] CORS verified
+- [x] No fake production data
+- [x] No direct YouTube API calls from frontend
+- [x] Comment text safely rendered (verbatim Unicode preservation)
+- [x] Accessibility checked (ARIA labels, roles, contrast)
+- [x] Responsive UI preserved
+- [x] Frontend tests pass (51/51 vitest)
+- [x] Backend regression tests pass (191/191 pytest)
+- [x] Frontend build passes (`tsc && vite build`)
+- [x] OpenAPI verified
+- [x] Documentation updated (`docs/api.md`, `docs/phase-status.md`)
+- [x] Git diff reviewed
+- [x] Focused commit created (`feat: integrate Kollamo.ai frontend with backend`)
+- [x] GitHub push successful
+- [x] No Phase 7+ implementation added
 
 ---
 

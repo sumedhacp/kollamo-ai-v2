@@ -4,8 +4,8 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Sandbox } from '@/pages/Sandbox';
 import { Analyze } from '@/pages/Analyze';
 import { Dashboard } from '@/pages/Dashboard';
-import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
-import { SingleSentimentResult, AnalysisJob, AnalyzeJobCreateResponse } from '@/types';
+import { SingleSentimentResult } from '@/types';
+
 
 describe('End-to-End User Journeys (Phase 9 Hardening)', () => {
   const originalFetch = global.fetch;
@@ -161,55 +161,64 @@ describe('End-to-End User Journeys (Phase 9 Hardening)', () => {
   // =========================================================================
   describe('Journey B: YouTube Ingestion & Analysis Workflow', () => {
     it('executes end-to-end ingestion: URL input, configuration, polling progress, and completion navigation', async () => {
-      const mockCreated: AnalyzeJobCreateResponse = {
-        job_id: 'job-phase9-test-123',
-        status: 'queued',
-        message: 'Analysis job queued successfully',
-        created_at: '2026-10-07T12:00:00Z',
-      };
-
-      const inProgressJob: AnalysisJob = {
-        job_id: 'job-phase9-test-123',
-        status: 'running',
-        progress: 0.6,
-        total_comments: 50,
-        processed_comments: 30,
-        created_at: '2026-10-07T12:00:00Z',
-        video: {
-          video_id: 'L0yEMl8PXnw',
-          title: 'Aavesham Official Trailer',
-          channel_title: 'Anwar Rasheed Entertainments',
-        },
-      };
-
-      const completedJob: AnalysisJob = {
-        ...DEMO_SAMPLE_JOB,
-        job_id: 'job-phase9-test-123',
-        status: 'completed',
-        progress: 1.0,
-        total_comments: 50,
-        processed_comments: 50,
-      };
-
       let pollCount = 0;
       global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
-        if (typeof url === 'string' && url.includes('/api/analyze') && init?.method === 'POST') {
+
+        if (
+          typeof url === 'string' &&
+          (url.includes('/api/v1/analysis/jobs') || url.includes('/api/analyze')) &&
+          init?.method === 'POST'
+        ) {
           return Promise.resolve({
             ok: true,
-            json: async () => mockCreated,
+            status: 202,
+            json: async () => ({
+              job_id: 'job-phase9-test-123',
+              status: 'QUEUED',
+            }),
           });
         }
-        if (typeof url === 'string' && url.includes('/api/analyze/job-phase9-test-123')) {
+        if (typeof url === 'string' && url.includes('job-phase9-test-123')) {
           pollCount++;
           if (pollCount === 1) {
             return Promise.resolve({
               ok: true,
-              json: async () => inProgressJob,
+              status: 200,
+              json: async () => ({
+                job_id: 'job-phase9-test-123',
+                status: 'PROCESSING',
+                progress: {
+                  stage: 'SENTIMENT_ANALYSIS',
+                  completed: 25,
+                  total: 50,
+                  percentage: 50,
+                },
+              }),
             });
           }
           return Promise.resolve({
             ok: true,
-            json: async () => completedJob,
+            status: 200,
+            json: async () => ({
+              job_id: 'job-phase9-test-123',
+              status: 'COMPLETED',
+              progress: {
+                stage: 'COMPLETED',
+                completed: 50,
+                total: 50,
+                percentage: 100,
+              },
+              result: {
+                video: {
+                  video_id: 'L0yEMl8PXnw',
+                  title: 'Aavesham Official Trailer',
+                  channel_title: 'Anwar Rasheed Entertainments',
+                },
+                total_comments: 50,
+                processed_comments: 50,
+                comments: [],
+              },
+            }),
           });
         }
         return Promise.resolve({
@@ -243,17 +252,18 @@ describe('End-to-End User Journeys (Phase 9 Hardening)', () => {
       // Verify POST call was dispatched
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          '/api/analyze',
+          expect.stringContaining('/api/v1/analysis/jobs'),
           expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({
-              youtube_url: 'https://www.youtube.com/watch?v=L0yEMl8PXnw',
-              sample_size: 100,
-              sort_mode: 'top',
+              video_url: 'https://www.youtube.com/watch?v=L0yEMl8PXnw',
+              comment_limit: 100,
+              sort_by: 'most_liked',
             }),
           })
         );
       });
+
 
       // Verify polling progress and final completion state
       await waitFor(

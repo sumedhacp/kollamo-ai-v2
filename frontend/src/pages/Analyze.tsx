@@ -1,133 +1,63 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import {
   Youtube,
-  CheckCircle2,
-  PlaySquare,
   Settings2,
   Clock,
-  BarChart3,
+  CheckCircle2,
   RefreshCw,
-  Video,
-  Eye,
-  Check,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
-import { SampleSize, SortMode } from '@/types';
-import { api, ApiError } from '@/services/api';
-import { useJobPolling } from '@/hooks/useJobPolling';
+import { Button } from '@/components/ui/button';
+import {
+  AnalysisForm,
+  AnalysisProgress,
+  AnalysisStatus,
+  AnalysisResultPreview,
+} from '@/components/analysis';
+import { useAnalysisJob } from '@/hooks/useAnalysisJob';
+import { AnalysisJobRequest } from '@/services/api/types';
 
-export const Analyze: React.FC = () => {
-  const navigate = useNavigate();
+interface AnalyzeProps {
+  pollingIntervalMs?: number;
+}
 
-  const [url, setUrl] = useState('');
-  const [sampleSize, setSampleSize] = useState<SampleSize>(100);
-  const [sortMode, setSortMode] = useState<SortMode>('top');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<{ message: string; code?: string } | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+export const Analyze: React.FC<AnalyzeProps> = ({
+  pollingIntervalMs = 2000,
+}) => {
+  const [submittedUrl, setSubmittedUrl] = useState<string>('');
 
-  const sampleSizes: SampleSize[] = [50, 100, 250, 500, 'ALL'];
-
-  const sortOptions: { value: SortMode; label: string; desc: string }[] = [
-    { value: 'top', label: 'Most Liked', desc: 'Analyzes high-engagement discussions first' },
-    { value: 'newest', label: 'Newest', desc: 'Captures fresh reactions and real-time trends' },
-    { value: 'oldest', label: 'Oldest', desc: 'Evaluates initial reactions upon release' },
-  ];
-
-  const sampleVideos = [
-    {
-      title: 'Aavesham Official Trailer (Malayalam)',
-      url: 'https://www.youtube.com/watch?v=L0yEMl8PXnw',
-    },
-    {
-      title: 'Manjummel Boys Movie Review (Malayalam)',
-      url: 'https://www.youtube.com/watch?v=5kKq3dF3PzQ',
-    },
-  ];
-
-  const validateYouTubeUrl = (inputUrl: string): boolean => {
-    const regExp =
-      /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    return regExp.test(inputUrl.trim());
-  };
-
-  // Real-time polling hook
   const {
-    job,
+    state,
+    jobId,
+    progress,
+    result,
+    error,
+    isSubmitting,
     isPolling,
-    error: pollingError,
-    refetch,
-  } = useJobPolling(activeJobId, {
-    intervalMs: 1500,
+    isCompleted,
+    isFailed,
+    submitJob,
+    reset,
+    retry,
+  } = useAnalysisJob({
+    pollingIntervalMs,
   });
 
-  const handleStartAnalysis = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationError(null);
-    setSubmitError(null);
 
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
-      setValidationError('Please enter a YouTube video URL.');
-      return;
-    }
-
-    if (!validateYouTubeUrl(trimmedUrl)) {
-      setValidationError(
-        'Invalid YouTube URL. Please provide a standard link like https://www.youtube.com/watch?v=... or https://youtu.be/...'
-      );
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await api.createAnalysisJob(trimmedUrl, sampleSize, sortMode);
-      setActiveJobId(response.job_id);
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setSubmitError({ message: err.message, code: err.code });
-      } else {
-        setSubmitError({
-          message: err instanceof Error ? err.message : 'Failed to initialize analysis job.',
-          code: 'INITIALIZATION_ERROR',
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleFormSubmit = async (request: AnalysisJobRequest) => {
+    setSubmittedUrl(request.video_url);
+    await submitJob(request);
   };
 
-  const handleResetForm = () => {
-    setActiveJobId(null);
-    setUrl('');
-    setValidationError(null);
-    setSubmitError(null);
+  const handleReset = () => {
+    reset();
+    setSubmittedUrl('');
   };
 
-  // Determine stage progression
-  const calculateStage = (status?: string, progress?: number): number => {
-    if (!status || status === 'queued') return 1;
-    if (status === 'running') {
-      const p = progress || 0;
-      if (p < 0.2) return 2; // Ingestion
-      if (p < 0.4) return 3; // Preprocessing
-      if (p < 0.9) return 4; // Inference
-      return 5; // Aggregation
-    }
-    if (status === 'completed') return 6;
-    return 1;
-  };
-
-  const currentStage = calculateStage(job?.status, job?.progress);
-  const progressPercent = Math.round((job?.progress ?? 0) * 100);
+  const isJobActive = isSubmitting || isPolling || isCompleted || isFailed;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -142,7 +72,9 @@ export const Analyze: React.FC = () => {
             Phase 6 Integrated
           </span>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">YouTube Comment Analysis</h1>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
+          YouTube Comment Analysis
+        </h1>
         <p className="text-base text-slate-600 mt-1">
           Extract and analyze hundreds or thousands of Malayalam and code-mixed comments directly from any YouTube video.
         </p>
@@ -159,134 +91,26 @@ export const Analyze: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleStartAnalysis} className="space-y-6">
-                {/* 1. YouTube URL Input */}
-                <div>
-                  <label htmlFor="youtube-url-input" className="block text-sm font-semibold text-slate-900 mb-2">
-                    YouTube Video URL <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    id="youtube-url-input"
-                    value={url}
-                    onChange={(e) => {
-                      setUrl(e.target.value);
-                      if (validationError) setValidationError(null);
-                      if (submitError) setSubmitError(null);
-                    }}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    leftIcon={<Youtube className="w-4 h-4 text-rose-500" />}
-                    error={validationError || undefined}
-                    aria-label="YouTube Video URL"
-                    disabled={isSubmitting || Boolean(activeJobId && isPolling)}
-                  />
-
-                  {/* Sample Video Quick Fill */}
-                  <div className="mt-2.5 flex items-center gap-2 text-xs text-slate-500">
-                    <span>Try sample:</span>
-                    {sampleVideos.map((sample, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setUrl(sample.url);
-                          setValidationError(null);
-                          setSubmitError(null);
-                        }}
-                        disabled={isSubmitting || Boolean(activeJobId && isPolling)}
-                        className="text-brand-600 hover:text-brand-800 underline truncate max-w-[180px] disabled:opacity-50"
-                      >
-                        {sample.title}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 2. Sample Size Selector */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">
-                    Sample Size (Comments to Extract)
-                  </label>
-                  <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Sample Size">
-                    {sampleSizes.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        role="radio"
-                        aria-checked={sampleSize === size}
-                        disabled={isSubmitting || Boolean(activeJobId && isPolling)}
-                        onClick={() => setSampleSize(size)}
-                        className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-all text-center select-none disabled:opacity-50 ${
-                          sampleSize === size
-                            ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    Larger sample sizes provide deeper demographic insight across long discussion threads.
-                  </p>
-                </div>
-
-                {/* 3. Sorting Selector */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">
-                    Comment Ordering
-                  </label>
-                  <div className="space-y-2">
-                    {sortOptions.map((opt) => (
-                      <label
-                        key={opt.value}
-                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                          sortMode === opt.value
-                            ? 'bg-brand-50/60 border-brand-300 text-slate-900'
-                            : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="sort_mode"
-                          value={opt.value}
-                          checked={sortMode === opt.value}
-                          disabled={isSubmitting || Boolean(activeJobId && isPolling)}
-                          onChange={() => setSortMode(opt.value)}
-                          className="mt-0.5 text-brand-600 focus:ring-brand-500"
-                        />
-                        <div className="text-xs">
-                          <span className="font-semibold block text-slate-900">{opt.label}</span>
-                          <span className="text-slate-500">{opt.desc}</span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Submit Error Alert */}
-                {submitError && (
-                  <Alert variant="error" title={submitError.code || 'Job Dispatch Error'}>
-                    {submitError.message}
-                  </Alert>
-                )}
-
-                {/* Submit button */}
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full"
-                  isLoading={isSubmitting}
-                  disabled={isSubmitting || (Boolean(activeJobId) && isPolling)}
-                >
-                  <PlaySquare className="w-4 h-4 mr-2" />
-                  {isSubmitting ? 'Queueing Analysis...' : 'Start Ingestion & Analysis'}
-                </Button>
-              </form>
+              <AnalysisForm
+                onSubmit={handleFormSubmit}
+                isSubmitting={isSubmitting}
+                isDisabled={isPolling}
+                initialUrl={submittedUrl}
+              />
             </CardContent>
           </Card>
+
+          {/* Result Preview (when completed) */}
+          {isCompleted && result && jobId && (
+            <AnalysisResultPreview
+              jobId={jobId}
+              result={result}
+              onReset={handleReset}
+            />
+          )}
         </div>
 
-        {/* Progress & Telemetry Panel */}
+        {/* Telemetry & Lifecycle Panel Column */}
         <div className="lg:col-span-5 space-y-6">
           <Card>
             <CardHeader className="pb-3">
@@ -295,20 +119,8 @@ export const Analyze: React.FC = () => {
                   <Settings2 className="w-4 h-4 text-brand-600" />
                   Pipeline Execution Panel
                 </span>
-                {activeJobId && (
-                  <Badge
-                    variant={
-                      job?.status === 'completed'
-                        ? 'default'
-                        : job?.status === 'failed'
-                        ? 'negative'
-                        : 'secondary'
-                    }
-                    size="sm"
-                    className="capitalize"
-                  >
-                    {job?.status || 'Queued'}
-                  </Badge>
+                {isJobActive && (
+                  <AnalysisStatus status={state} />
                 )}
               </CardTitle>
               <CardDescription>
@@ -316,156 +128,60 @@ export const Analyze: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* If job active */}
-              {activeJobId ? (
-                <div className="space-y-4" data-testid="analyze-progress-panel">
-                  {/* Video Metadata Card (when available) */}
-                  {job?.video && (
-                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
-                      <div className="flex items-start gap-2.5">
-                        <Video className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-xs font-semibold text-slate-900 truncate">
-                            {job.video.title}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                            <span>{job.video.channel_title}</span>
-                            {job.video.view_count !== undefined && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-1">
-                                  <Eye className="w-3 h-3 text-slate-400" />
-                                  {Number(job.video.view_count).toLocaleString()} views
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+              {isJobActive ? (
+                <div className="space-y-4">
+                  {/* Progress Telemetry */}
+                  <AnalysisProgress
+                    progress={progress}
+                    stageName={state}
+                    isCompleted={isCompleted}
+                    isFailed={isFailed}
+                  />
+
+                  {/* Failure State Notification */}
+                  {isFailed && error && (
+                    <div className="space-y-3" role="alert">
+                      <Alert
+                        variant="error"
+                        title={
+                          error.code === 'MODEL_NOT_READY'
+                            ? 'Model Not Ready'
+                            : error.code === 'NETWORK_ERROR'
+                            ? 'Connection Failure'
+                            : error.code || 'Job Execution Error'
+                        }
+                      >
+                        {error.code === 'MODEL_NOT_READY'
+                          ? 'The sentiment analysis model is not ready yet. Please try again after the model has been configured.'
+                          : error.code === 'NETWORK_ERROR'
+                          ? 'Unable to connect to the Kollamo.ai backend. Please check that the backend is running.'
+                          : error.message}
+                      </Alert>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => retry()}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          Retry Analysis
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={handleReset}
+                        >
+                          Try Different Video
+                        </Button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Polling Error Alert */}
-                  {pollingError && (
-                    <Alert variant="error" title="Pipeline Error">
-                      {pollingError.message}
-                    </Alert>
-                  )}
-
-                  {/* Progress Bar & Numerical Counter */}
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">
-                        {job?.status === 'completed'
-                          ? 'Analysis Complete'
-                          : job?.status === 'failed'
-                          ? 'Job Failed'
-                          : 'Processing Comments...'}
-                      </span>
-                      <span className="font-mono font-bold text-brand-700">
-                        {progressPercent}%
-                      </span>
-                    </div>
-
-                    <Progress value={progressPercent} max={100} />
-
-                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                      <span>Comments Evaluated:</span>
-                      <span className="font-mono font-medium text-slate-800">
-                        {job?.processed_comments || 0} / {job?.total_comments || sampleSize}
-                      </span>
-                    </div>
-
-                    {/* Step-by-step lifecycle indicators */}
-                    <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 space-y-2">
-                      <div className="font-medium text-slate-900 mb-1">Execution Stages:</div>
-                      <div className="space-y-1.5 pl-1">
-                        {[
-                          { step: 1, label: '1. Queued in Redis / PostgreSQL' },
-                          { step: 2, label: '2. YouTube Data API v3 Ingestion' },
-                          { step: 3, label: '3. Unicode NFKC & Script Classification' },
-                          { step: 4, label: '4. MuRIL Neural Sentiment Inference' },
-                          { step: 5, label: '5. Metric Aggregation & Engagement Rollup' },
-                        ].map((s) => {
-                          const isDone = currentStage > s.step;
-                          const isCurrent = currentStage === s.step;
-                          return (
-                            <div
-                              key={s.step}
-                              className={`flex items-center gap-2 ${
-                                isDone
-                                  ? 'text-emerald-700 font-medium'
-                                  : isCurrent
-                                  ? 'text-brand-700 font-semibold'
-                                  : 'text-slate-400'
-                              }`}
-                            >
-                              {isDone ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : isCurrent ? (
-                                <RefreshCw className="w-3.5 h-3.5 text-brand-600 animate-spin" />
-                              ) : (
-                                <div className="w-2 h-2 rounded-full bg-slate-300 ml-1 mr-0.5" />
-                              )}
-                              <span>{s.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions when completed */}
-                  {job?.status === 'completed' && (
-                    <div className="space-y-3 pt-2">
-                      <Button
-                        size="lg"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700"
-                        onClick={() => navigate(`/dashboard?job_id=${job.job_id}`)}
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        View Audience Dashboard
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={handleResetForm}
-                      >
-                        Analyze Another Video
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Actions when failed */}
-                  {job?.status === 'failed' && (
-                    <div className="space-y-3 pt-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          if (job?.job_id) {
-                            api.processJob(job.job_id).then(() => refetch()).catch(() => {});
-                          }
-                        }}
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Retry Processing
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={handleResetForm}
-                      >
-                        Try Different Video
-                      </Button>
                     </div>
                   )}
                 </div>
               ) : (
-                /* Empty state before triggering */
+                /* Information state when idle */
                 <div className="space-y-4 text-xs text-slate-500 py-4">
                   <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
                     <div className="flex items-center gap-2 font-medium text-slate-800">
