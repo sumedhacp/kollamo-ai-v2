@@ -7,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-10-07
+## [1.0.0] - 2026-10-08
 
 ### Added
 - Complete production multi-container orchestration stack (`docker-compose.yml` and `docker-compose.prod.yml`) featuring PostgreSQL 16 Alpine, Redis 7 Alpine, FastAPI backend, Celery asynchronous worker, and Nginx Alpine frontend.
 - Production multi-stage Dockerfiles (`docker/backend.Dockerfile`, `docker/worker.Dockerfile`, `frontend/Dockerfile`, `backend/Dockerfile`) with unprivileged runtime users (`appuser`), optimized layer caching, and healthcheck probes.
 - High-performance Nginx production configuration (`frontend/nginx.conf`) with SPA client routing fallback, Gzip compression, asset caching headers, and reverse proxy for `/api/`.
 - Production dependency specifications (`backend/requirements.txt`, `backend/requirements-dev.txt`, `requirements.txt`).
-- Complete CI/CD pipeline automation in `.github/workflows/ci.yml` running secret leak scans, backend/ML tests on Python 3.12, frontend Vitest tests, TypeScript strict type checks, Vite production bundle compilation, and Docker configuration syntax validation.
+- Complete multi-tier testing pyramid: 295 automated tests passing with 0 regressions (177 backend pytest tests, 49 ML pytest tests, 69 frontend Vitest tests, strict TypeScript type check, and production bundle compilation).
 - Comprehensive production deployment and operational runbook guide (`docs/deployment.md`) detailing architecture topology, system requirements, step-by-step launch, backup/restore procedures, scaling options, and troubleshooting.
+- Dedicated release notes document (`RELEASE_NOTES.md`) detailing all system capabilities, performance benchmarks, and deployment guidance.
 - Updated `README.md` with release badge `v1.0.0`, Docker Compose quickstart, and testing pyramid commands.
 
 ---
