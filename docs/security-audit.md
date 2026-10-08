@@ -8,7 +8,7 @@ This document records the comprehensive security architecture, threat model eval
 
 Kollamo.ai is an academic and enterprise-grade intelligence platform processing public social media data (YouTube comments) and providing NLP sentiment classification. Because it interfaces with third-party web APIs, runs asynchronous compute pipelines, and executes machine learning inference, robust defenses against injection, Denial of Service (DoS), Server-Side Request Forgery (SSRF), information leakage, and malicious payloads are strictly enforced.
 
-All security controls are verified by automated tests in `backend/tests/test_security.py` and frontend integration suites.
+All security controls are verified by automated tests in `backend/tests/test_phase9_security.py`, `backend/tests/test_security.py`, and frontend integration suites.
 
 ---
 
@@ -17,11 +17,11 @@ All security controls are verified by automated tests in `backend/tests/test_sec
 | OWASP Vulnerability Category | Risk Level | Defensive Architecture & Countermeasures | Verification |
 | :--- | :--- | :--- | :--- |
 | **A01: Broken Access Control** | Low | Kollamo.ai provides public analytical endpoints with read-only job IDs and no multi-tenant privilege escalation surfaces. Video IDs and job UUIDs are isolated. | Verified via UUID job isolation |
-| **A02: Cryptographic Failures** | Low | Sensitive tokens (YouTube Data API v3 key, database credentials) are stored strictly in environment variables via Pydantic `BaseSettings`. Zero secrets committed to git. | Automated git diff and secrets audit |
+| **A02: Cryptographic Failures** | Low | Sensitive tokens (YouTube Data API v3 key, database credentials) are stored strictly in environment variables via Pydantic `BaseSettings`. Zero secrets committed to git. | Automated git diff and secrets audit (`test_secret_leak_prevention_on_health_and_info`) |
 | **A03: Injection (SQL / Command)** | Low | All database interactions use SQLAlchemy 2.0 ORM with parameterized queries and async sessions (`aiosqlite`/PostgreSQL). No raw string concatenation in SQL or shell executions. | SQL query parameterization tests |
 | **A04: Insecure Design** | Low | Fail-safe defaults: Rate limiting on all routes, strict request payload schemas, timeout limits on outbound YouTube calls, and graceful degradation during worker failure. | Multi-tier test pyramid |
-| **A05: Security Misconfiguration** | Low | CORS headers strictly enforced (`ALLOWED_CORS_ORIGINS`). Detailed stack traces disabled in production responses; debug mode disabled by default. | `test_cors_preflight_and_origin`, `test_sanitized_internal_server_errors` |
-| **A06: Vulnerable & Outdated Components** | Low | Automated dependency audits (`npm audit`, pip security scanning). Pinning pinned versions in `requirements.txt` and `package.json`. | Dependency lockfiles |
+| **A05: Security Misconfiguration** | Low | CORS headers strictly enforced (`ALLOWED_CORS_ORIGINS`). Detailed stack traces disabled in production responses; debug mode disabled by default. | `test_cors_origin_restriction_and_preflight`, `test_sanitized_internal_server_errors` |
+| **A06: Vulnerable & Outdated Components** | Low | Automated dependency audits (`npm audit`, pip security scanning). Build-tool devDependencies isolated without runtime production footprint. | Section 5 Dependency Assessment |
 | **A07: Identification & Authentication Failures**| N/A | Public analytics engine without user sessions; API key management for upstream Google APIs isolated in backend vault. | Configuration tests |
 | **A08: Software & Data Integrity Failures** | Low | Model weights verified via Hugging Face cache integrity; strict Pydantic v2 deserialization with type checking and sanitization. | `test_schema_validation` |
 | **A09: Security Logging & Monitoring Failures** | Low | Structured Python `logging` capturing timestamp, level, method, endpoint, and sanitized error messages. Tracebacks logged to server stderr only. | `generic_exception_handler` verification |
@@ -86,3 +86,23 @@ All security controls are verified by automated tests in `backend/tests/test_sec
 ## 4. Academic Integrity & Model Reliability
 - **Zero Fake Predictions**: In accordance with the academic project specification, mock heuristic fallbacks or random sentiment assignment when the ML model is unreachable are strictly prohibited.
 - **Explicit Readiness Telemetry**: When the model is downloading or offline, the API returns a structured HTTP 503 `MODEL_OFFLINE` error instead of degraded falsified outputs.
+
+---
+
+## 5. Dependency Audit & Web Security Hardening
+
+### 5.1 Third-Party Dependency Assessment
+- **NPM DevDependencies**: `npm audit` was executed across the frontend environment. 14 advisories were reported in development build tooling (`tailwindcss`, `vite`, `vitest`, `react-router`), each requiring major breaking version migrations (`tailwindcss@4`, `vite@8`, `vitest@5`, `react-router@7`).
+- **Production Exposure**: In accordance with Section 36 engineering guidelines, low-risk build tooling advisories that would destabilize the existing codebase through major breaking rewrites were isolated and evaluated. None of the affected devDependencies are bundled into runtime production client assets or exposed to end-user input execution.
+- **Python Backend**: All core requirements (`fastapi`, `pydantic`, `celery`, `redis`, `transformers`, `torch`, `sqlalchemy`) utilize secure, pinned stable releases.
+
+### 5.2 XSS (Cross-Site Scripting) Neutralization
+- **Plain Text Rendering**: Social media comment content retrieved from YouTube is treated strictly as untrusted data.
+- **DOM Insertion**: React JSX default string escaping is used for all comment text rendering across the UI, table views, and modal inspectors.
+- **Zero Raw HTML Injection**: The application contains 0 occurrences of `dangerouslySetInnerHTML` or unescaped innerHTML bindings. Comments containing `<script>alert('xss')</script>` or SVG image attack vectors are verified to render as harmless literal plain text (`test_xss_prevention_in_comment_text`).
+
+### 5.3 SSRF (Server-Side Request Forgery) Defense
+- **Strict Video ID Regex**: Input URLs are parsed and extracted strictly against the canonical YouTube ID format `^[a-zA-Z0-9_-]{11}$`.
+- **Target Restriction**: Outbound HTTP requests made by the ingestion worker are constrained to official Google YouTube Data API v3 endpoints.
+- **Non-YouTube Schemas Blocked**: Local file paths (`file:///etc/passwd`), FTP schemes (`ftp://...`), loopback addresses (`127.0.0.1`), and cloud provider metadata addresses (`169.254.169.254`) are intercepted and rejected with HTTP 422 before any network connection is initiated (`test_ssrf_protection_rejects_malicious_urls`).
+

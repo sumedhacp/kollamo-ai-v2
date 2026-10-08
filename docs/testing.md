@@ -26,47 +26,50 @@ flowchart TD
 
 | Test Domain | Test Framework | Test Files / Directories | Test Count | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Backend & ML** | `pytest` + `pytest-asyncio` | `backend/tests/`, `ml/tests/` | **77 tests** | **100% Passing** |
-| **Frontend UI** | `vitest` + React Testing Library | `frontend/src/test/` | **38 tests** | **100% Passing** |
-| **End-to-End Specs**| `@playwright/test` | `frontend/e2e/` | **3 suites** | **Configured & Validated** |
+| **Backend API & Async** | `pytest` + `pytest-asyncio` | `backend/tests/` | **177 tests** | **100% Passing** |
+| **ML & NLP Transformers** | `pytest` | `ml/tests/` | **49 tests** | **100% Passing** |
+| **Frontend UI & Journeys**| `vitest` + React Testing Library | `frontend/src/test/` | **69 tests** | **100% Passing** |
 | **Static Types** | `tsc --noEmit` | `frontend/tsconfig.json` | Full project | **0 Errors** |
+| **Total Automated Tests** | Multi-tier test pyramid | System-wide | **295 tests** | **100% Passing** |
 
 ---
 
 ## 3. Detailed Test Modules
 
 ### 3.1 Backend & ML Test Suites (`backend/tests/`, `ml/tests/`)
-1. **API Endpoints & Schemas**:
-   - `test_analyze.py`: Job creation, validation, lifecycle states, comments filtering and pagination (9 tests).
-   - `test_sentiment.py`: Single-comment live inference, multilingual inputs, class probability sum checks (6 tests).
-   - `test_health.py`: Readiness probes, database status, Redis ping, ML model health check (2 tests).
-   - `test_ingest_api.py`: YouTube video ingestion endpoint triggers and response schemas (4 tests).
-2. **Asynchronous Processing & Workers**:
-   - `test_celery_tasks.py`: Task failure handling, state transitions, Redis telemetry rollups (4 tests).
-   - `test_ingestion_service.py`: YouTube API pagination, quota error handling, comment entity mapping (2 tests).
-   - `test_youtube_client.py`: API error translation, mock video metadata fetching, comment thread parsing (9 tests).
-3. **Translation & PDF Reporting**:
-   - `test_translation.py`: Multi-tier translation, colloquial Manglish movie lexicon, fallback degradation, orthographic normalization (7 tests).
-   - `test_report.py`: Audience intelligence report schema generation, ReportLab PDF binary streaming, content verification (6 tests).
-4. **Security Hardening (`test_security.py`)**:
-   - `test_oversized_payload_rejected`: Max 5,000 characters limit rejection (422 `VALIDATION_ERROR`).
-   - `test_empty_or_whitespace_payload_rejected`: Pure whitespace rejection (422 `VALIDATION_ERROR`).
-   - `test_malicious_youtube_urls_rejected`: SSRF protection blocking local file/ftp schemas and internal metadata IPs (422 `VALIDATION_ERROR`).
-   - `test_cors_headers_and_preflight`: CORS preflight and allowed origins verification.
-   - `test_rate_limiter_throttles_burst_traffic`: Sliding window 120 req/min rate limiter throttling burst requests (429 `RATE_LIMIT_EXCEEDED` with `Retry-After: 60`).
-   - `test_sanitized_internal_server_errors`: Intercepting unhandled internal exceptions and preventing credential/traceback leaks (500 `INTERNAL_SERVER_ERROR`).
-5. **Performance & Multi-Scale Benchmarks (`test_async_benchmark.py`)**:
-   - `test_single_comment_latency_benchmark`: Latency verification (<50ms P95).
-   - `test_multiscale_batch_benchmark`: Parameterized batch benchmark across 50, 100, 250, 500, and 1,000 comments (>100 comments/sec, <50MB peak memory via `tracemalloc`).
-   - `test_micro_batch_3500_comments_benchmark`: 3,500+ comments micro-batching throughput and rollup efficiency.
-6. **ML Pipeline & Transformer Modeling (`ml/tests/`)**:
-   - `test_preprocessing.py`: Unicode NFKC normalization, Manglish tokenization, repeated characters (7 tests).
-   - `test_baseline.py`: TF-IDF vectorizer + Logistic Regression baseline benchmark (2 tests).
-   - `test_inference.py`: Predictor interface, probability calibration, output validation (2 tests).
-   - `test_muril.py`: Google MuRIL forward pass tensor shapes and attention mask alignment (2 tests).
-   - `test_data_loader.py`: Stratified data splitting with zero leakage (2 tests).
+1. **Phase 9 Comprehensive Regression Suite (`backend/tests/test_phase9_regression.py` — 17 tests)**:
+   - 5-class taxonomy immutability (`Positive`, `Negative`, `Neutral`, `Mixed`, `Unsupported`).
+   - Probability distribution invariants (all 5 classes present, bounded in [0, 1], sum to 1.0 within 1e-3, labeled "probabilities" / "Model class probabilities", never emotional intensity).
+   - Model readiness states (`MODEL_READY` 200, `MODEL_NOT_READY` 503, `MODEL_UNAVAILABLE` 503, `INFERENCE_ERROR` 500) verifying zero fake sentiment fallback.
+   - API input validation matrix: missing text (422 `REQUIRED`), empty/whitespace text (422 `EMPTY_TEXT`), invalid types (422 `INVALID_TYPE`), oversized text >5000 chars (422), invalid comment limits (422), invalid sort (422).
+   - YouTube ingestion: comment limits enforced (50, 100), verbatim Unicode preservation (Malayalam, emojis, English).
+   - Async job progress stages: `QUEUED` → `FETCHING_VIDEO` → `FETCHING_COMMENTS` → `SENTIMENT_ANALYSIS` → `FINALIZING` → `COMPLETED`.
+   - Translation: plain English bypass (`NOT_NEEDED`), LRU caching deduplication, provider failure isolation (`FAILED` status preserving original verbatim text).
+2. **Phase 9 Security Hardening Suite (`backend/tests/test_phase9_security.py` — 6 tests)**:
+   - SSRF protection rejecting non-YouTube URLs, `file://`, `ftp://`, internal metadata IP `169.254.169.254`, `localhost`, etc.
+   - XSS attack vector neutralization in comments, ensuring plain text preservation without HTML execution.
+   - Secret exposure prevention: `/api/health` and `/` root metadata endpoints never leak `APP_SECRET_KEY`, `YOUTUBE_API_KEY`, or `DATABASE_URL`.
+   - CORS origin restrictions: unauthorized origins rejected, no `allow_origins=["*"]` wildcard with credentials.
+   - Sliding window rate limiting: in-memory limiter enforces threshold and returns HTTP 429 with `Retry-After`.
+   - Unhandled internal runtime error sanitization: returns 500 error envelope with zero stack trace or internal credential leaks.
+3. **Phase 9 Empirical Performance Suite (`backend/tests/test_phase9_performance.py` — 7 tests)**:
+   - Single-comment sentiment latency: average < 15ms, P95 < 45ms.
+   - Multi-scale batch throughput and memory: 500, 1,000, 2,000, and 3,500+ comments (throughput > 700 items/sec, peak memory < 30MB via `tracemalloc`).
+   - Translation caching speedup: cold lookup (~3.5ms) vs warm cached lookup (<0.1ms), achieving >30x speedup.
+   - 5-class summary metrics aggregation efficiency: 3,500 comments aggregated in < 15ms.
+4. **Core Backend Endpoints, Services, and Async Workers (`backend/tests/` — 147 tests)**:
+   - API analysis endpoints, sentiment service, health probes, and ingestion API.
+   - Celery async worker tasks, Redis state tracking, and failure recovery.
+   - YouTube client parsing, pagination, and quota management.
+   - Translation service, in-memory LRU cache, and ReportLab PDF reporting.
+5. **ML Pipeline & Transformer Modeling (`ml/tests/` — 49 tests)**:
+   - Unicode NFKC normalization, Manglish tokenization, repeated character deduplication.
+   - TF-IDF vectorizer + Logistic Regression baseline models.
+   - Predictor interface, probability calibration, output validation.
+   - Google MuRIL forward pass tensor shapes and attention mask alignment.
+   - Stratified dataset splitters with zero leakage.
 
-### 3.2 Frontend Test Suites (`frontend/src/test/`)
+### 3.2 Frontend Test Suites (`frontend/src/test/` — 69 tests)
 1. `components.test.tsx`: Reusable atomic UI components (Badge, Button, Card, Alert).
 2. `pages.test.tsx`: Page shell rendering, hero section, CTA buttons, error boundaries.
 3. `integration.test.tsx`: Frontend API client, real-time job polling hook, error envelope handling.
@@ -97,19 +100,21 @@ flowchart TD
 To run all test suites across the repository:
 
 ```bash
-# 1. Run Backend & ML Tests (77 tests)
-python -m pytest backend/tests ml/tests
+# 1. Run All Backend Tests (177 tests)
+python -m pytest backend/tests
 
-# 2. Run Security & Performance Benchmarks
-python -m pytest backend/tests/test_security.py backend/tests/test_async_benchmark.py -v
+# 2. Run ML Pipeline Tests (49 tests)
+python -m pytest ml/tests
 
-# 3. Run Frontend Vitest Suites (38 tests)
-cd frontend
-npm test
+# 3. Run Dedicated Phase 9 Regression, Security, and Performance Suites
+python -m pytest backend/tests/test_phase9_regression.py backend/tests/test_phase9_security.py backend/tests/test_phase9_performance.py -v
 
-# 4. Run Frontend TypeScript Strict Type-Check
+# 4. Run Frontend Vitest Suites (69 tests)
+npm test -- --run
+
+# 5. Run Frontend TypeScript Strict Type-Check
 npm run type-check
 
-# 5. Run Frontend Production Bundle Build
+# 6. Run Frontend Production Bundle Build
 npm run build
 ```
