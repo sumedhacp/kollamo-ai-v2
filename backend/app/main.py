@@ -355,10 +355,13 @@ except ImportError:
     from backend.app.api.routes.youtube import router as v1_youtube_router
     from backend.app.api.routes.analysis import router as v1_analysis_router
 
+from backend.app.api.routes.translation import router as v1_translation_router
+
 app.include_router(health_router)
 app.include_router(v1_sentiment_router, prefix="/api/v1")
 app.include_router(v1_youtube_router, prefix="/api/v1")
 app.include_router(v1_analysis_router, prefix="/api/v1")
+app.include_router(v1_translation_router, prefix="/api/v1")
 
-# Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze)
+# Mount Primary API Router under /api (supports /api/health, /api/sentiment legacy, /api/analyze, /api/translate)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

@@ -2,20 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   BarChart3,
-  MessageSquare,
   ThumbsUp,
-  Smile,
-  Frown,
-  Minus,
-  Shuffle,
-  HelpCircle,
   Search,
-  Filter,
   Layers,
   ArrowRight,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
   TrendingUp,
   FileSpreadsheet,
@@ -26,16 +17,23 @@ import {
   FileText,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge, SentimentBadge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Alert } from '@/components/ui/alert';
-import { SentimentClass, AnalysisJob } from '@/types';
-import { api, ApiError } from '@/services/api';
+import { SentimentClass, AnalysisJob, CommentItem } from '@/types';
+import { api, ApiError, getJobV1, AnalysisResult } from '@/services/api';
 import { DEMO_SAMPLE_JOB } from '@/data/sampleJob';
-import { generateAudienceIntelligencePdf } from '@/utils/pdfGenerator';
+import { generateAudienceIntelligencePdf, getAnalysisReportFilename } from '@/utils/pdfGenerator';
+import {
+  VideoOverview,
+  MetricCards,
+  SentimentDistribution,
+  CommentsTable,
+  CommentDetailsModal,
+} from '@/components/dashboard';
 
 export const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -49,10 +47,129 @@ export const Dashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
+  const [inspectedComment, setInspectedComment] = useState<CommentItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Adapter function to transform Phase 6 AnalysisResult into dashboard state
+  const adaptAnalysisResultToJob = (id: string, result: AnalysisResult): AnalysisJob => {
+    const commentsList = result.analysis?.comments || result.comments || [];
+    const totalAnalyzed =
+      result.total_comments ?? result.analysis?.returned_comment_count ?? commentsList.length;
+
+    const counts = result.analysis?.sentiment_counts || result.sentiment_counts || {
+      Positive: commentsList.filter((c) => c.sentiment === 'Positive').length,
+      Negative: commentsList.filter((c) => c.sentiment === 'Negative').length,
+      Neutral: commentsList.filter((c) => c.sentiment === 'Neutral').length,
+      Mixed: commentsList.filter((c) => c.sentiment === 'Mixed').length,
+      Unsupported: commentsList.filter((c) => c.sentiment === 'Unsupported').length,
+    };
+
+    const posCount = (counts as any).Positive ?? (counts as any).positive ?? 0;
+    const negCount = (counts as any).Negative ?? (counts as any).negative ?? 0;
+    const neuCount = (counts as any).Neutral ?? (counts as any).neutral ?? 0;
+    const mixCount = (counts as any).Mixed ?? (counts as any).mixed ?? 0;
+    const unsCount = (counts as any).Unsupported ?? (counts as any).unsupported ?? 0;
+
+    const calcPct = (cnt: number) => (totalAnalyzed > 0 ? (cnt / totalAnalyzed) * 100 : 0);
+
+    const mappedComments = commentsList.map((c) => ({
+      comment_id: c.comment_id,
+      author_display_name: c.author_display_name || c.author_name || 'Anonymous User',
+      published_at: c.published_at || '',
+      like_count: c.like_count || 0,
+      reply_count: 0,
+      original_text: c.text,
+      detected_language: (c as any).detected_language || 'ml',
+      detected_script: (c as any).detected_script || 'Latin',
+      sentiment: ((c.sentiment ? c.sentiment.toLowerCase() : 'neutral') as SentimentClass),
+      confidence: c.confidence || 0.9,
+      probabilities: c.probabilities,
+      translated_text: (c as any).translated_text,
+    }));
+
+    return {
+      job_id: id,
+      status: 'completed',
+      progress: 1.0,
+      processed_comments: totalAnalyzed,
+      total_comments: totalAnalyzed,
+      created_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      video: {
+        video_id: result.video.video_id,
+        title: result.video.title,
+        channel_title: result.video.channel_title || '',
+        view_count: result.video.view_count || 0,
+        thumbnail_url: result.video.thumbnail_url || '',
+        published_at: result.video.published_at,
+        like_count: result.video.like_count,
+        comment_count: result.video.comment_count,
+        comment_count_available: result.video.comment_count_available,
+      },
+      summary: {
+        total_analyzed: totalAnalyzed,
+        sentiment_counts: {
+          positive: posCount,
+          negative: negCount,
+          neutral: neuCount,
+          mixed: mixCount,
+          unsupported: unsCount,
+        },
+        sentiment_percentages: {
+          positive: calcPct(posCount),
+          negative: calcPct(negCount),
+          neutral: calcPct(neuCount),
+          mixed: calcPct(mixCount),
+          unsupported: calcPct(unsCount),
+        },
+        engagement_metrics: {
+          total_likes: commentsList.reduce((acc, c) => acc + (c.like_count || 0), 0),
+          average_likes_per_sentiment: {
+            positive:
+              posCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Positive')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / posCount
+                : 0,
+            negative:
+              negCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Negative')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / negCount
+                : 0,
+            neutral:
+              neuCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Neutral')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / neuCount
+                : 0,
+            mixed:
+              mixCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Mixed')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / mixCount
+                : 0,
+            unsupported:
+              unsCount > 0
+                ? commentsList
+                    .filter((c) => c.sentiment === 'Unsupported')
+                    .reduce((s, c) => s + (c.like_count || 0), 0) / unsCount
+                : 0,
+          },
+        },
+      },
+      comments: mappedComments,
+      model: result.model,
+      processing: result.processing,
+      model_name: result.model_name || result.model?.name,
+      model_version: result.model_version || result.model?.version,
+    } as any;
+  };
 
   // Load job data
   useEffect(() => {
@@ -70,23 +187,48 @@ export const Dashboard: React.FC = () => {
     setIsLoading(true);
     setFetchError(null);
 
-    api
-      .getJobStatus(jobId)
-      .then((data) => {
-        if (isMounted) {
-          setJob(data);
+    // Try Phase 6 getJobV1 (/api/v1/analysis/jobs/{job_id}) first
+    getJobV1(jobId)
+      .then((statusRes) => {
+        if (!isMounted) return;
+        if (statusRes.result) {
+          setJob(adaptAnalysisResultToJob(jobId, statusRes.result));
+        } else if ((statusRes as any).summary && (statusRes as any).video) {
+          setJob(statusRes as any);
+        } else if (statusRes.status === 'FAILED') {
+          setFetchError(statusRes.error?.message || 'Analysis job failed');
+        } else {
+          // If in progress or empty result, try legacy endpoint
+          api
+            .getJobStatus(jobId)
+            .then((legacyJob) => {
+              if (isMounted) setJob(legacyJob);
+            })
+            .catch(() => {
+              if (isMounted) setFetchError(`Job is currently ${statusRes.status.toLowerCase()}`);
+            });
         }
       })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          const msg =
-            err instanceof ApiError
-              ? `${err.code}: ${err.message}`
-              : err instanceof Error
-              ? err.message
-              : 'Failed to load analysis results';
-          setFetchError(msg);
-        }
+      .catch((_err: unknown) => {
+        // Fallback to legacy getJobStatus
+        api
+          .getJobStatus(jobId)
+          .then((data) => {
+            if (isMounted) {
+              setJob(data);
+            }
+          })
+          .catch((err: unknown) => {
+            if (isMounted) {
+              const msg =
+                err instanceof ApiError
+                  ? `${err.code}: ${err.message}`
+                  : err instanceof Error
+                  ? err.message
+                  : 'Failed to load analysis results';
+              setFetchError(msg);
+            }
+          });
       })
       .finally(() => {
         if (isMounted) {
@@ -232,6 +374,7 @@ export const Dashboard: React.FC = () => {
 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
   const [pdfNotice, setPdfNotice] = useState<string | null>(null);
 
   // Export PDF Report (Client jsPDF with Server Fallback)
@@ -239,13 +382,15 @@ export const Dashboard: React.FC = () => {
     if (!job) return;
     setIsGeneratingPdf(true);
     setPdfNotice(null);
+    const videoId = job.video?.video_id || (job as { video_id?: string }).video_id || job.job_id;
+    const filename = getAnalysisReportFilename(videoId);
     try {
       const doc = generateAudienceIntelligencePdf(job, {
         includeMethodology: true,
         includeComments: true,
         maxComments: 15,
       });
-      doc.save(`kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`);
+      doc.save(filename);
       setPdfNotice('Academic PDF report compiled and downloaded successfully!');
       setTimeout(() => setPdfNotice(null), 4000);
     } catch (err) {
@@ -255,7 +400,7 @@ export const Dashboard: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `kollamo-audience-report-${job.job_id.slice(0, 8)}.pdf`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -264,10 +409,87 @@ export const Dashboard: React.FC = () => {
         setTimeout(() => setPdfNotice(null), 4000);
       } catch (serverErr) {
         console.error('Server PDF download failed:', serverErr);
-        setPdfNotice('Failed to generate PDF report. Please try again.');
+        setPdfNotice('Unable to generate the PDF report. Please try again.');
+        setTimeout(() => setPdfNotice(null), 4000);
       }
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  // Trigger individual comment translation on demand
+  const handleTranslateSingleComment = async (commentToTranslate: CommentItem) => {
+    if (!job || !commentToTranslate) return;
+    if (commentToTranslate.translated_text) return;
+
+    if (
+      commentToTranslate.detected_language === 'en' ||
+      commentToTranslate.detected_script?.toLowerCase() === 'english' ||
+      commentToTranslate.translation_status === 'NOT_NEEDED'
+    ) {
+      return;
+    }
+
+    setTranslatingCommentId(commentToTranslate.comment_id);
+    try {
+      const res = await api.translateText(commentToTranslate.original_text, 'auto', 'en');
+      const isEnglish = res.status === 'NOT_NEEDED';
+      const newStatus = isEnglish ? 'NOT_NEEDED' : 'COMPLETED';
+      const translated = isEnglish ? undefined : res.translated_text;
+
+      setJob((prevJob) => {
+        if (!prevJob || !prevJob.comments) return prevJob;
+        return {
+          ...prevJob,
+          comments: prevJob.comments.map((c) =>
+            c.comment_id === commentToTranslate.comment_id
+              ? {
+                  ...c,
+                  translated_text: translated,
+                  translation_status: newStatus,
+                  translation_error: undefined,
+                }
+              : c
+          ),
+        };
+      });
+
+      setInspectedComment((prev) => {
+        if (!prev || prev.comment_id !== commentToTranslate.comment_id) return prev;
+        return {
+          ...prev,
+          translated_text: translated,
+          translation_status: newStatus,
+          translation_error: undefined,
+        };
+      });
+    } catch (err) {
+      console.error('Individual comment translation failed:', err);
+      setJob((prevJob) => {
+        if (!prevJob || !prevJob.comments) return prevJob;
+        return {
+          ...prevJob,
+          comments: prevJob.comments.map((c) =>
+            c.comment_id === commentToTranslate.comment_id
+              ? {
+                  ...c,
+                  translation_status: 'FAILED',
+                  translation_error: 'Translation unavailable.',
+                }
+              : c
+          ),
+        };
+      });
+      setInspectedComment((prev) => {
+        if (!prev || prev.comment_id !== commentToTranslate.comment_id) return prev;
+        return {
+          ...prev,
+          translation_status: 'FAILED',
+          translation_error: 'Translation unavailable.',
+        };
+      });
+    } finally {
+      setTranslatingCommentId(null);
     }
   };
 
@@ -293,51 +515,6 @@ export const Dashboard: React.FC = () => {
       setIsTranslating(false);
     }
   };
-
-  const summaryCards = [
-    {
-      title: 'Total Comments',
-      value: summary ? summary.total_analyzed.toLocaleString() : '-',
-      icon: <MessageSquare className="w-4 h-4 text-brand-600" />,
-      border: 'border-slate-200',
-      badge: summary ? `${summary.total_analyzed} Analyzed` : '0 Analyzed',
-    },
-    {
-      title: 'Positive',
-      value: summary ? `${summary.sentiment_percentages.positive.toFixed(1)}%` : '-',
-      icon: <Smile className="w-4 h-4 text-emerald-600" />,
-      border: 'border-emerald-200',
-      badge: summary ? `${summary.sentiment_counts.positive} comments` : '0%',
-    },
-    {
-      title: 'Negative',
-      value: summary ? `${summary.sentiment_percentages.negative.toFixed(1)}%` : '-',
-      icon: <Frown className="w-4 h-4 text-rose-600" />,
-      border: 'border-rose-200',
-      badge: summary ? `${summary.sentiment_counts.negative} comments` : '0%',
-    },
-    {
-      title: 'Neutral',
-      value: summary ? `${summary.sentiment_percentages.neutral.toFixed(1)}%` : '-',
-      icon: <Minus className="w-4 h-4 text-slate-600" />,
-      border: 'border-slate-200',
-      badge: summary ? `${summary.sentiment_counts.neutral} comments` : '0%',
-    },
-    {
-      title: 'Mixed',
-      value: summary ? `${summary.sentiment_percentages.mixed.toFixed(1)}%` : '-',
-      icon: <Shuffle className="w-4 h-4 text-amber-600" />,
-      border: 'border-amber-200',
-      badge: summary ? `${summary.sentiment_counts.mixed} comments` : '0%',
-    },
-    {
-      title: 'Unsupported',
-      value: summary ? `${summary.sentiment_percentages.unsupported.toFixed(1)}%` : '-',
-      icon: <HelpCircle className="w-4 h-4 text-zinc-500" />,
-      border: 'border-zinc-200',
-      badge: summary ? `${summary.sentiment_counts.unsupported} comments` : '0%',
-    },
-  ];
 
   const sentimentChartData = useMemo(() => {
     if (!summary) return [];
@@ -391,11 +568,11 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            {job?.video ? job.video.title : 'Audience Analytics Dashboard'}
+            Audience Analytics Dashboard
           </h1>
           <p className="text-sm text-slate-600 mt-1">
             {job?.video
-              ? `Channel: ${job.video.channel_title} • ${Number(job.video.view_count || 0).toLocaleString()} views • ${comments.length} comments classified`
+              ? `${Number(job.video.view_count || 0).toLocaleString()} views • ${comments.length} comments classified`
               : 'Multilingual sentiment distributions, engagement metrics, and granular comment intelligence.'}
           </p>
         </div>
@@ -481,29 +658,42 @@ export const Dashboard: React.FC = () => {
         </Alert>
       )}
 
-      {/* 1. Summary Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {summaryCards.map((card, idx) => (
-          <Card key={idx} className={`border ${card.border} shadow-sm`}>
-            <CardContent className="p-4 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-medium truncate">{card.title}</span>
-                {card.icon}
-              </div>
-              {isDisplayingSkeleton ? (
-                <Skeleton className="h-7 w-16" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{card.value}</div>
-              )}
-              {isDisplayingSkeleton ? (
-                <Skeleton className="h-4 w-12" />
-              ) : (
-                <div className="text-[11px] text-slate-400 font-mono">{card.badge}</div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Loading Skeleton */}
+      {isDisplayingSkeleton && (
+        <div className="space-y-4" data-testid="dashboard-loading-skeleton">
+          <Skeleton className="h-44 w-full rounded-xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Video Overview (Phase 7) */}
+      {job?.video && !isDisplayingSkeleton && (
+        <VideoOverview
+          video={job.video as any}
+          model={(job as any).model}
+          modelName={(job as any).model_name}
+          modelVersion={(job as any).model_version}
+          processing={(job as any).processing}
+        />
+      )}
+
+      {/* Metric Cards (Phase 7) */}
+      {summary && !isDisplayingSkeleton && (
+        <MetricCards
+          totalAnalyzed={summary.total_analyzed}
+          sentimentCounts={{
+            Positive: summary.sentiment_counts.positive,
+            Negative: summary.sentiment_counts.negative,
+            Neutral: summary.sentiment_counts.neutral,
+            Mixed: summary.sentiment_counts.mixed,
+            Unsupported: summary.sentiment_counts.unsupported,
+          }}
+        />
+      )}
 
       {/* Net Sentiment Approval Index Banner */}
       {summary && !isDisplayingSkeleton && (
@@ -556,6 +746,23 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Five-Class Sentiment Distribution Analytics (Phase 7) */}
+      {summary && !isDisplayingSkeleton && (
+        <SentimentDistribution
+          sentimentCounts={{
+            Positive: summary.sentiment_counts.positive,
+            Negative: summary.sentiment_counts.negative,
+            Neutral: summary.sentiment_counts.neutral,
+            Mixed: summary.sentiment_counts.mixed,
+            Unsupported: summary.sentiment_counts.unsupported,
+          }}
+          totalAnalyzed={summary.total_analyzed}
+          netApprovalIndex={netApprovalIndex}
+          activeFilter={activeTab === 'all' ? null : activeTab}
+          onSentimentClick={(s) => setActiveTab(s.toLowerCase() as SentimentClass)}
+        />
       )}
 
       {/* 2. Visual Charts Row */}
@@ -898,156 +1105,69 @@ export const Dashboard: React.FC = () => {
         </CardHeader>
 
         <CardContent className="p-0">
-          {isDisplayingSkeleton ? (
-            <div className="p-6 space-y-4" data-testid="dashboard-table-skeleton">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : paginatedComments.length > 0 ? (
-            <div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
-                    <tr>
-                      <th className="px-4 py-3">Author</th>
-                      <th className="px-4 py-3">Comment Text & Translation</th>
-                      <th className="px-4 py-3">Script</th>
-                      <th className="px-4 py-3">Sentiment</th>
-                      <th className="px-4 py-3">Confidence</th>
-                      <th className="px-4 py-3">Likes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {paginatedComments.map((c) => (
-                      <tr key={c.comment_id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap align-top">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700">
-                              {(c.author_display_name || 'U').charAt(0).toUpperCase()}
-                            </div>
-                            <span className="truncate max-w-[120px]">{c.author_display_name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 max-w-md">
-                          <div className="text-slate-900 font-serif text-[13px] leading-relaxed">
-                            {c.original_text}
-                          </div>
-                          {c.translated_text && (
-                            <div className="mt-1 p-2 rounded-lg bg-slate-50 border border-slate-200 text-brand-900 text-xs italic">
-                              <span className="font-semibold text-slate-500 mr-1 not-italic text-[10px] uppercase">
-                                En:
-                              </span>
-                              {c.translated_text}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top whitespace-nowrap">
-                          <Badge variant="outline" size="sm">
-                            {c.detected_script}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 align-top whitespace-nowrap">
-                          <SentimentBadge sentiment={c.sentiment} />
-                        </td>
-                        <td className="px-4 py-3 align-top font-mono whitespace-nowrap">
-                          {(c.confidence * 100).toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-3 align-top font-mono text-slate-700 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <ThumbsUp className="w-3 h-3 text-slate-400" />
-                            <span>{c.like_count}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination controls */}
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                <div>
-                  Showing {(currentPage - 1) * pageSize + 1} to{' '}
-                  {Math.min(currentPage * pageSize, filteredComments.length)} of{' '}
-                  {filteredComments.length} comments
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-                    Previous
-                  </Button>
-                  <span className="px-2 font-medium">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                  >
-                    Next
-                    <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="p-8">
-              <EmptyState
-                icon={<Filter className="w-8 h-8 text-slate-400" />}
-                title={job ? 'No Matching Comments Found' : 'No Analyzed Comments'}
-                description={
-                  job
-                    ? 'No comments matched your current keyword or script filter criteria.'
-                    : 'Analyze a YouTube video from the Analyze page to view full comment breakdowns and translations.'
-                }
-                action={
-                  !job ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
-                      <Link to="/analyze">
-                        <Button size="sm">
-                          Go to Analyze
-                          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSearchParams({ job_id: 'demo-aavesham-2026-sample' });
-                        }}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
-                        Explore Demo Review Dataset
-                      </Button>
-                    </div>
-                  ) : searchQuery || activeTab !== 'all' || activeScriptFilter !== 'all' ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setActiveTab('all');
-                        setActiveScriptFilter('all');
-                      }}
-                    >
-                      Clear All Filters
+          <CommentsTable
+            comments={paginatedComments}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalFiltered={filteredComments.length}
+            onPageChange={setCurrentPage}
+            onInspectComment={(c) => {
+              setInspectedComment(c);
+              setIsModalOpen(true);
+            }}
+            onTranslateComment={handleTranslateSingleComment}
+            translatingCommentId={translatingCommentId}
+            isSkeleton={isDisplayingSkeleton}
+            hasActiveFilters={Boolean(searchQuery || activeTab !== 'all' || activeScriptFilter !== 'all')}
+            onClearFilters={() => {
+              setSearchQuery('');
+              setActiveTab('all');
+              setActiveScriptFilter('all');
+            }}
+            emptyTitle={job ? 'No Matching Comments Found' : 'No Analyzed Comments'}
+            emptyDescription={
+              job
+                ? 'No comments matched your current keyword or script filter criteria.'
+                : 'Analyze a YouTube video from the Analyze page to view full comment breakdowns and translations.'
+            }
+            emptyAction={
+              !job ? (
+                <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
+                  <Link to="/analyze">
+                    <Button size="sm">
+                      Go to Analyze
+                      <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                     </Button>
-                  ) : undefined
-                }
-              />
-            </div>
-          )}
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchParams({ job_id: 'demo-aavesham-2026-sample' });
+                    }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-brand-600" />
+                    Explore Demo Review Dataset
+                  </Button>
+                </div>
+              ) : undefined
+            }
+          />
         </CardContent>
       </Card>
+
+      {/* Comment Details & Class Probabilities Breakdown Modal (Phase 7 & 8) */}
+      <CommentDetailsModal
+        comment={inspectedComment}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setInspectedComment(null);
+        }}
+        onTranslateComment={handleTranslateSingleComment}
+        isTranslating={translatingCommentId === inspectedComment?.comment_id}
+      />
     </div>
   );
 };

@@ -1,8 +1,8 @@
-"""Translation API Endpoints."""
+"""Translation API Endpoints (v1) for Kollamo.ai Phase 8."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from backend.app.schemas.translation import TranslationRequest, TranslationResponse
-from backend.app.schemas.error import ErrorResponse
+from backend.app.schemas.translation import TranslationRequest, TranslationResponse, CommentTranslation
+from backend.app.schemas.common import ErrorResponse
 from backend.app.services.translation_service import (
     BaseTranslationService,
     get_translation_service,
@@ -13,21 +13,28 @@ router = APIRouter(tags=["Translation"])
 
 
 @router.post(
-    "/translate",
+    "/translation",
     response_model=TranslationResponse,
     status_code=status.HTTP_200_OK,
-    summary="Translate regional text to English",
-    description="Translates Malayalam script, Manglish / Romanized Malayalam, or code-mixed text to English using the multi-tier translation engine.",
+    summary="Translate regional text to English (v1)",
+    description="Translates Malayalam, Manglish, or code-mixed text to English, preserving original text.",
     responses={
         422: {"model": ErrorResponse, "description": "Validation error"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def translate_text(
+@router.post(
+    "/translate",
+    response_model=TranslationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Translate regional text to English alias (v1)",
+    description="Alias for /translation endpoint.",
+)
+async def translate_text_v1(
     request: TranslationRequest,
     translation_service: BaseTranslationService = Depends(get_translation_service),
 ) -> TranslationResponse:
-    """Translates submitted Malayalam or Manglish text into English."""
+    """Translates submitted text to English while maintaining original text verbatim."""
     try:
         res = translation_service.translate_detailed(
             text=request.text,

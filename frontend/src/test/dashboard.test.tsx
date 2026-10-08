@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Dashboard } from '@/pages/Dashboard';
+import {
+  VideoOverview,
+  MetricCards,
+  SentimentDistribution,
+  SentimentLegend,
+  CommentFilters,
+  CommentDetailsModal,
+  CommentsTable,
+} from '@/components/dashboard';
 
 describe('Audience Intelligence Dashboard (Phase 7)', () => {
   beforeEach(() => {
@@ -145,5 +154,402 @@ describe('Audience Intelligence Dashboard (Phase 7)', () => {
     const prevBtn = screen.getByRole('button', { name: /previous/i });
     fireEvent.click(prevBtn);
     expect(screen.getByText(/Page 1 of 2/i)).toBeInTheDocument();
+  });
+
+  describe('VideoOverview Component (Phase 7 UI)', () => {
+    it('renders all video intelligence metadata, model telemetry, and external YouTube link', () => {
+      render(
+        <VideoOverview
+          video={{
+            video_id: 'abc123xyz89',
+            title: 'Sample Malayalam Movie Teaser',
+            channel_title: 'SillyMonks Mollywood',
+            view_count: 500000,
+            like_count: 25000,
+            comment_count_available: 480,
+            published_at: '2026-03-15T10:00:00Z',
+          }}
+          model={{ name: 'kollamo-muril-v2', version: '2.1.0' }}
+          processing={{ processing_time_ms: 1450 }}
+        />
+      );
+
+      expect(screen.getByText('Sample Malayalam Movie Teaser')).toBeInTheDocument();
+      expect(screen.getByText('SillyMonks Mollywood')).toBeInTheDocument();
+      expect(screen.getByText('500,000')).toBeInTheDocument();
+      expect(screen.getByText('25,000')).toBeInTheDocument();
+      expect(screen.getByText('480')).toBeInTheDocument();
+      expect(screen.getByText(/kollamo-muril-v2/i)).toBeInTheDocument();
+      expect(screen.getByText(/1.45s/i)).toBeInTheDocument();
+
+      const watchLink = screen.getByRole('link', { name: /open youtube video sample malayalam movie teaser in new tab/i });
+      expect(watchLink).toHaveAttribute('href', 'https://www.youtube.com/watch?v=abc123xyz89');
+    });
+
+    it('handles missing optional video metadata gracefully with Unavailable', () => {
+      render(
+        <VideoOverview
+          video={{
+            video_id: 'minimal1234',
+            title: 'Minimal Metadata Video',
+            channel_title: null,
+            view_count: null,
+            like_count: null,
+            comment_count_available: null,
+            published_at: null,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Minimal Metadata Video')).toBeInTheDocument();
+      expect(screen.getByText(/channel unavailable/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/unavailable/i).length).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  describe('MetricCards Component (Phase 7 UI)', () => {
+    it('renders six metric cards with exact counts and calculated percentage of analyzed comments', () => {
+      render(
+        <MetricCards
+          totalAnalyzed={200}
+          sentimentCounts={{
+            Positive: 100,
+            Negative: 40,
+            Neutral: 30,
+            Mixed: 20,
+            Unsupported: 10,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Analyzed Comments')).toBeInTheDocument();
+      expect(screen.getByText('200')).toBeInTheDocument();
+
+      expect(screen.getByText('Positive')).toBeInTheDocument();
+      expect(screen.getByText('100')).toBeInTheDocument();
+      expect(screen.getByText('50.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Negative')).toBeInTheDocument();
+      expect(screen.getByText('40')).toBeInTheDocument();
+      expect(screen.getByText('20.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Neutral')).toBeInTheDocument();
+      expect(screen.getByText('30')).toBeInTheDocument();
+      expect(screen.getByText('15.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Mixed')).toBeInTheDocument();
+      expect(screen.getByText('20')).toBeInTheDocument();
+      expect(screen.getByText('10.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Unsupported')).toBeInTheDocument();
+      expect(screen.getByText('10')).toBeInTheDocument();
+      expect(screen.getByText('5.0%')).toBeInTheDocument();
+
+      expect(screen.getAllByText('of analyzed comments').length).toBe(5);
+    });
+
+    it('safely handles zero total analyzed comments without NaN or runtime errors', () => {
+      render(
+        <MetricCards
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getByText('Analyzed Comments')).toBeInTheDocument();
+      expect(screen.getAllByText('0.0%').length).toBe(5);
+    });
+  });
+
+  describe('SentimentLegend Component (Phase 7 Analytics)', () => {
+    it('renders all 5 semantic sentiment classes with counts and percentage shares', () => {
+      const onSelectMock = vi.fn();
+      render(
+        <SentimentLegend
+          totalAnalyzed={500}
+          sentimentCounts={{
+            Positive: 250,
+            Negative: 100,
+            Neutral: 75,
+            Mixed: 50,
+            Unsupported: 25,
+          }}
+          onSelect={onSelectMock}
+        />
+      );
+
+      expect(screen.getByText('Positive')).toBeInTheDocument();
+      expect(screen.getByText('250')).toBeInTheDocument();
+      expect(screen.getByText('50.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Negative')).toBeInTheDocument();
+      expect(screen.getByText('100')).toBeInTheDocument();
+      expect(screen.getByText('20.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Neutral')).toBeInTheDocument();
+      expect(screen.getByText('75')).toBeInTheDocument();
+      expect(screen.getByText('15.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Mixed')).toBeInTheDocument();
+      expect(screen.getByText('50')).toBeInTheDocument();
+      expect(screen.getByText('10.0%')).toBeInTheDocument();
+
+      expect(screen.getByText('Unsupported')).toBeInTheDocument();
+      expect(screen.getByText('25')).toBeInTheDocument();
+      expect(screen.getByText('5.0%')).toBeInTheDocument();
+
+      // Click on Positive class item
+      const positiveItem = screen.getByText('Positive').closest('[role="listitem"]')!;
+      fireEvent.click(positiveItem);
+      expect(onSelectMock).toHaveBeenCalledWith('Positive');
+    });
+
+    it('safely renders zero percentages when totalAnalyzed is 0', () => {
+      render(
+        <SentimentLegend
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getAllByText('0.0%').length).toBe(5);
+    });
+  });
+
+  describe('SentimentDistribution Component (Phase 7 Analytics)', () => {
+    it('renders distribution container, toggles Donut/Bar modes, and shows Net Approval badge', () => {
+      const onSentimentClickMock = vi.fn();
+      render(
+        <SentimentDistribution
+          totalAnalyzed={100}
+          sentimentCounts={{
+            Positive: 68,
+            Negative: 8,
+            Neutral: 14,
+            Mixed: 8,
+            Unsupported: 2,
+          }}
+          netApprovalIndex={60}
+          onSentimentClick={onSentimentClickMock}
+        />
+      );
+
+      expect(screen.getByText('Five-Class Sentiment Distribution')).toBeInTheDocument();
+      expect(screen.getByText('Net: +60%')).toBeInTheDocument();
+
+      // View switcher buttons
+      const donutTab = screen.getByRole('tab', { name: /donut/i });
+      const barTab = screen.getByRole('tab', { name: /bar/i });
+      expect(donutTab).toBeInTheDocument();
+      expect(barTab).toBeInTheDocument();
+
+      // Toggle to Bar chart mode
+      fireEvent.click(barTab);
+      expect(barTab).toHaveAttribute('aria-selected', 'true');
+
+      // Toggle back to Donut mode
+      fireEvent.click(donutTab);
+      expect(donutTab).toHaveAttribute('aria-selected', 'true');
+
+      // Legend inside distribution
+      expect(screen.getByTestId('sentiment-legend')).toBeInTheDocument();
+    });
+
+    it('renders clean empty state message when totalAnalyzed is 0', () => {
+      render(
+        <SentimentDistribution
+          totalAnalyzed={0}
+          sentimentCounts={{
+            Positive: 0,
+            Negative: 0,
+            Neutral: 0,
+            Mixed: 0,
+            Unsupported: 0,
+          }}
+        />
+      );
+
+      expect(screen.getByText('No comments analyzed')).toBeInTheDocument();
+    });
+  });
+
+  describe('CommentDetailsModal Component (Phase 7 Comment Insights)', () => {
+    it('renders verbatim comment text, metadata, and full 5-class model probabilities breakdown', () => {
+      const onCloseMock = vi.fn();
+      render(
+        <CommentDetailsModal
+          isOpen={true}
+          onClose={onCloseMock}
+          comment={{
+            comment_id: 'c-test-999',
+            author_display_name: 'Anand Mohan',
+            published_at: '2026-04-12T14:30:00Z',
+            like_count: 342,
+            reply_count: 5,
+            original_text: 'FaFa mass performance aayirunnu, Sushin Shyam bgm adipoli!',
+            detected_language: 'ml-en',
+            detected_script: 'Latin',
+            sentiment: 'positive',
+            confidence: 0.945,
+            translated_text: 'FaFa mass performance was awesome, Sushin Shyam bgm great!',
+            probabilities: {
+              Positive: 0.945,
+              Negative: 0.012,
+              Neutral: 0.021,
+              Mixed: 0.015,
+              Unsupported: 0.007,
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('Anand Mohan')).toBeInTheDocument();
+      expect(screen.getByText('342 likes')).toBeInTheDocument();
+      expect(screen.getByText('Script: Latin')).toBeInTheDocument();
+      expect(screen.getByText('Confidence: 94.5%')).toBeInTheDocument();
+      expect(screen.getByText('FaFa mass performance aayirunnu, Sushin Shyam bgm adipoli!')).toBeInTheDocument();
+      expect(screen.getByText('FaFa mass performance was awesome, Sushin Shyam bgm great!')).toBeInTheDocument();
+
+      // Probabilities breakdown
+      expect(screen.getByText('Model Probabilities Breakdown')).toBeInTheDocument();
+      expect(screen.getByText('94.5%')).toBeInTheDocument();
+      expect(screen.getByText('1.2%')).toBeInTheDocument();
+      expect(screen.getByText('2.1%')).toBeInTheDocument();
+
+      // Close modal
+      const closeBtn = screen.getByRole('button', { name: /close comment details modal/i });
+      fireEvent.click(closeBtn);
+      expect(onCloseMock).toHaveBeenCalled();
+    });
+
+    it('does not render when isOpen is false', () => {
+      const { container } = render(
+        <CommentDetailsModal
+          isOpen={false}
+          onClose={vi.fn()}
+          comment={{
+            comment_id: 'c-1',
+            author_display_name: 'Test',
+            published_at: '2026-04-12T14:30:00Z',
+            like_count: 10,
+            reply_count: 0,
+            original_text: 'Sample',
+            detected_language: 'ml',
+            detected_script: 'Malayalam',
+            sentiment: 'positive',
+            confidence: 0.9,
+          }}
+        />
+      );
+      expect(container.firstChild).toBeNull();
+    });
+  });
+
+  describe('CommentFilters Component (Phase 7 Comment Insights)', () => {
+    it('handles search input, sort selection, and sentiment tab changes', () => {
+      const onSearchChangeMock = vi.fn();
+      const onTabChangeMock = vi.fn();
+      const onSortByChangeMock = vi.fn();
+      const onSelectThemeMock = vi.fn();
+
+      render(
+        <CommentFilters
+          searchQuery=""
+          onSearchChange={onSearchChangeMock}
+          activeTab="all"
+          onTabChange={onTabChangeMock}
+          activeScriptFilter="all"
+          onScriptFilterChange={vi.fn()}
+          sortBy="likes"
+          onSortByChange={onSortByChangeMock}
+          selectedTheme={null}
+          onSelectTheme={onSelectThemeMock}
+          discussionTopics={[
+            { label: 'BGM / Music', term: 'bgm' },
+            { label: 'FaFa Acting', term: 'fafa' },
+          ]}
+        />
+      );
+
+      // Search
+      const searchInput = screen.getByPlaceholderText(/search comments, authors, or translations/i);
+      fireEvent.change(searchInput, { target: { value: 'Sushin' } });
+      expect(onSearchChangeMock).toHaveBeenCalledWith('Sushin');
+
+      // Sort
+      const confidenceSortBtn = screen.getByRole('button', { name: 'Confidence' });
+      fireEvent.click(confidenceSortBtn);
+      expect(onSortByChangeMock).toHaveBeenCalledWith('confidence');
+
+      // Sentiment tab
+      const negativeTabBtn = screen.getByRole('button', { name: /^negative$/i });
+      fireEvent.click(negativeTabBtn);
+      expect(onTabChangeMock).toHaveBeenCalledWith('negative');
+
+      // Theme filter
+      const bgmThemeBtn = screen.getByRole('button', { name: 'BGM / Music' });
+      fireEvent.click(bgmThemeBtn);
+      expect(onSelectThemeMock).toHaveBeenCalledWith('bgm');
+    });
+  });
+
+  describe('CommentsTable Component (Phase 7 Comment Insights)', () => {
+    it('renders comments rows, pagination, and triggers inspect callback', () => {
+      const onInspectMock = vi.fn();
+      const onPageChangeMock = vi.fn();
+
+      render(
+        <CommentsTable
+          comments={[
+            {
+              comment_id: 'c1',
+              author_display_name: 'Reshma V',
+              published_at: '2026-04-11T10:00:00Z',
+              like_count: 85,
+              reply_count: 2,
+              original_text: 'Adipoli trailer, waiting for release!',
+              detected_language: 'ml-en',
+              detected_script: 'Latin',
+              sentiment: 'positive',
+              confidence: 0.98,
+            },
+          ]}
+          currentPage={1}
+          totalPages={3}
+          pageSize={10}
+          totalFiltered={25}
+          onPageChange={onPageChangeMock}
+          onInspectComment={onInspectMock}
+        />
+      );
+
+      expect(screen.getByText('Reshma V')).toBeInTheDocument();
+      expect(screen.getByText('Adipoli trailer, waiting for release!')).toBeInTheDocument();
+      expect(screen.getByText('85')).toBeInTheDocument();
+      expect(screen.getByText('98.0%')).toBeInTheDocument();
+
+      // Inspect click
+      const inspectBtn = screen.getByRole('button', { name: /inspect/i });
+      fireEvent.click(inspectBtn);
+      expect(onInspectMock).toHaveBeenCalled();
+
+      // Pagination
+      expect(screen.getByText(/showing 1 to 10 of 25 comments/i)).toBeInTheDocument();
+      const nextBtn = screen.getByRole('button', { name: /next/i });
+      fireEvent.click(nextBtn);
+      expect(onPageChangeMock).toHaveBeenCalledWith(2);
+    });
   });
 });

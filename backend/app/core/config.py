@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Project metadata
     PROJECT_NAME: str = "Kollamo.ai"
-    VERSION: str = "0.4.0"
+    VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
